@@ -13,13 +13,15 @@ vi.mock("@/components/session/session-provider", () => ({
 }));
 
 const EXPECTED_LINKS = [
-  ["Experience", "/experience"],
-  ["Projects", "/projects"],
-  ["Testimonials", "/testimonials"],
-  ["Highlights", "/highlights"],
   ["Social links", "/social-links"],
   ["Technologies", "/technologies"],
+  ["Highlights", "/highlights"],
+  ["Testimonials", "/testimonials"],
   ["Contact info", "/contact-info"],
+  ["Projects", "/projects"],
+  ["Experience", "/experience"],
+  ["Certifications", "/certifications"],
+  ["Posts", "/posts"],
 ];
 
 describe("Sidebar", () => {
@@ -28,7 +30,7 @@ describe("Sidebar", () => {
     signOut.mockClear();
   });
 
-  it("links to the 7 collections", () => {
+  it("links to the 9 collections", () => {
     render(<Sidebar />);
     const links = within(screen.getByRole("navigation")).getAllByRole("link");
     expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual(

@@ -122,7 +122,6 @@ describe("ItemForm fields", () => {
   it("fills the inputs with the initial values when editing", () => {
     renderForm("experience", {
       id: 1,
-      position: 0,
       period: "2024 – now",
       role: "Engineer",
       company: "Acme",
@@ -130,7 +129,6 @@ describe("ItemForm fields", () => {
       technologies: ["TypeScript"],
       current: true,
     });
-    expect((screen.getByLabelText("Position") as HTMLInputElement).value).toBe("0");
     expect((screen.getByLabelText("Role") as HTMLInputElement).value).toBe("Engineer");
     expect((screen.getByLabelText("Current position") as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText("TypeScript")).toBeTruthy();

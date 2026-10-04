@@ -226,10 +226,23 @@ function Field({ id, field, value, error, onChange }: FieldProps) {
           onChange={onChange}
         />
       )}
+      {!BASIC_KINDS.has(field.kind) && (
+        // Placeholder for the content-pages kinds until they get their own inputs.
+        <input
+          {...a11y}
+          type="text"
+          readOnly={typeof value !== "string" && value !== null && value !== undefined}
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) => onChange(event.target.value)}
+          className={inputClass}
+        />
+      )}
       {errorText}
     </div>
   );
 }
+
+const BASIC_KINDS = new Set(["text", "textarea", "int", "boolean", "list"]);
 
 interface ChipInputProps {
   a11y: React.InputHTMLAttributes<HTMLInputElement>;

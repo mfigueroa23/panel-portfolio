@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createItem, deleteItem, listItems, updateItem } from "./content";
+import {
+  createItem,
+  deleteItem,
+  listItems,
+  publishItem,
+  unpublishItem,
+  updateItem,
+} from "./content";
 
 vi.mock("./config", () => ({
   API_URL: "http://api.test",
@@ -54,6 +61,42 @@ describe("content", () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.data.map((item) => item.id)).toEqual([1, 2, 3, 5]);
+    });
+
+    it("reads the admin list with the token where the collection has one", async () => {
+      fetchMock.mockImplementation(async () => jsonResponse(200, []));
+      await listItems("posts", "tok.en.value");
+      const { url, init, headers } = lastCall();
+      expect(url).toBe("http://api.test/content/posts/all");
+      expect(init.cache).toBe("no-store");
+      expect(headers.get("Authorization")).toBe("Bearer tok.en.value");
+      await listItems("projects", "tok.en.value");
+      expect(lastCall().url).toBe("http://api.test/content/projects/all");
+    });
+
+    it("sorts projects with drafts first, then by publication date descending", async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, [
+          { id: 1, status: "published", publishedAt: "2026-09-01T00:00:00.000Z" },
+          { id: 2, status: "published", publishedAt: "2026-10-01T00:00:00.000Z" },
+          { id: 3, status: "draft", publishedAt: null },
+        ]),
+      );
+      const result = await listItems("projects", "tok.en.value");
+      expect(result.ok && result.data.map((item) => item.id)).toEqual([3, 2, 1]);
+    });
+
+    it("sorts experience by current, then start month descending", async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, [
+          { id: 1, current: false, startDate: "2020-01" },
+          { id: 2, current: false, startDate: null },
+          { id: 3, current: true, startDate: "2018-01" },
+          { id: 4, current: false, startDate: "2023-06" },
+        ]),
+      );
+      const result = await listItems("experience");
+      expect(result.ok && result.data.map((item) => item.id)).toEqual([3, 4, 1, 2]);
     });
 
     it("returns the API error unchanged", async () => {
@@ -127,6 +170,39 @@ describe("content", () => {
       expect(init.body).toBeUndefined();
       expect(headers.get("Authorization")).toBe("Bearer tok.en.value");
       expect(result).toEqual({ ok: true, data: undefined });
+    });
+  });
+
+  describe("publishItem and unpublishItem", () => {
+    it("POSTs to /:id/publish with the token", async () => {
+      const published = { id: 4, status: "published", publishedAt: "2026-10-04T00:00:00.000Z" };
+      fetchMock.mockResolvedValue(jsonResponse(200, published));
+      expect(await publishItem("posts", 4, "tok.en.value")).toEqual({ ok: true, data: published });
+      const { url, init, headers } = lastCall();
+      expect(url).toBe("http://api.test/content/posts/4/publish");
+      expect(init.method).toBe("POST");
+      expect(init.body).toBeUndefined();
+      expect(headers.get("Authorization")).toBe("Bearer tok.en.value");
+    });
+
+    it("POSTs to /:id/unpublish with the token", async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, { id: 4, status: "draft" }));
+      await unpublishItem("projects", 4, "tok.en.value");
+      const { url, init } = lastCall();
+      expect(url).toBe("http://api.test/content/projects/4/unpublish");
+      expect(init.method).toBe("POST");
+    });
+
+    it("returns the missing fields of a refused publish", async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(400, { error: "Validation failed.", fields: { summary: ["Required."] } }),
+      );
+      expect(await publishItem("posts", 4, "t.o.k")).toEqual({
+        ok: false,
+        status: 400,
+        error: "Validation failed.",
+        fields: { summary: ["Required."] },
+      });
     });
   });
 });

@@ -3,15 +3,23 @@ import { COLLECTIONS, type CollectionKey, type ContentItem } from "./collections
 
 export type ItemValues = Record<string, unknown>;
 
-/** Reads a collection from its public endpoint, always fresh. */
-export async function listItems(key: CollectionKey): Promise<ApiResult<ContentItem[]>> {
-  const result = await apiFetch<ContentItem[]>(COLLECTIONS[key].apiPath, {
+/**
+ * Reads a collection, always fresh: the admin list (drafts included, with the
+ * token) where the collection has one, the public list otherwise.
+ */
+export async function listItems(
+  key: CollectionKey,
+  token?: string,
+): Promise<ApiResult<ContentItem[]>> {
+  const def = COLLECTIONS[key];
+  const result = await apiFetch<ContentItem[]>(def.apiAdminListPath ?? def.apiPath, {
     method: "GET",
     cache: "no-store",
+    ...(def.apiAdminListPath && token ? { token } : {}),
   });
   if (!result.ok) return result;
-  // The API already orders by position then id; sorting again is a safeguard.
-  const data = [...result.data].sort((a, b) => a.position - b.position || a.id - b.id);
+  // The API already returns this order; sorting again is a safeguard.
+  const data = [...result.data].sort(def.sort);
   return { ok: true, data };
 }
 
@@ -47,6 +55,28 @@ export function deleteItem(
 ): Promise<ApiResult<void>> {
   return apiFetch<void>(`${COLLECTIONS[key].apiPath}/${id}`, {
     method: "DELETE",
+    token,
+  });
+}
+
+export function publishItem(
+  key: CollectionKey,
+  id: number,
+  token: string,
+): Promise<ApiResult<ContentItem>> {
+  return apiFetch<ContentItem>(`${COLLECTIONS[key].apiPath}/${id}/publish`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function unpublishItem(
+  key: CollectionKey,
+  id: number,
+  token: string,
+): Promise<ApiResult<ContentItem>> {
+  return apiFetch<ContentItem>(`${COLLECTIONS[key].apiPath}/${id}/unpublish`, {
+    method: "POST",
     token,
   });
 }

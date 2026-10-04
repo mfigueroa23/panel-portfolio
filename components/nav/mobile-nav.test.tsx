@@ -31,19 +31,21 @@ describe("MobileNav", () => {
     }
   });
 
-  it("opens a drawer with the 7 collection links and Log out", () => {
+  it("opens a drawer with the 9 collection links and Log out", () => {
     render(<MobileNav />);
     expect(screen.queryByRole("dialog")).toBeNull();
     const drawer = openDrawer();
     const links = within(drawer).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      "/experience",
-      "/projects",
-      "/testimonials",
-      "/highlights",
       "/social-links",
       "/technologies",
+      "/highlights",
+      "/testimonials",
       "/contact-info",
+      "/projects",
+      "/experience",
+      "/certifications",
+      "/posts",
     ]);
     fireEvent.click(within(drawer).getByRole("button", { name: "Log out" }));
     expect(signOut).toHaveBeenCalledTimes(1);

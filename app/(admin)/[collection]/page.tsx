@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { CollectionList } from "@/components/content/collection-list";
 import { errorMessage } from "@/lib/api";
 import { COLLECTIONS, isCollectionKey } from "@/lib/collections";
 import { listItems } from "@/lib/content";
+import { SESSION_COOKIE } from "@/lib/session-cookie";
 
 export async function generateMetadata({
   params,
@@ -19,7 +21,9 @@ export default async function CollectionPage({ params }: PageProps<"/[collection
   const { collection } = await params;
   if (!isCollectionKey(collection)) notFound();
 
-  const result = await listItems(collection);
+  // Publishable collections list drafts only for the signed-in owner.
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const result = await listItems(collection, token);
   // Caught by app/(admin)/error.tsx, which shows the connection error.
   if (!result.ok) throw new Error(errorMessage(result));
 
