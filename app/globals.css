@@ -45,3 +45,100 @@
     font-family: var(--font-display);
   }
 }
+
+/* Markdown preview: the API's HTML (plan D5), styled with the colour tokens. */
+@layer components {
+  .md-preview {
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .md-preview > * + * {
+    margin-top: 0.875rem;
+  }
+  .md-preview h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+  .md-preview h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .md-preview a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .md-preview ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+  }
+  .md-preview ol {
+    list-style: decimal;
+    padding-left: 1.5rem;
+  }
+  .md-preview blockquote {
+    border-left: 3px solid var(--color-primary);
+    padding-left: 1rem;
+    color: var(--color-muted-foreground);
+  }
+  .md-preview code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background-color: var(--color-muted);
+    padding: 0.1em 0.35em;
+    border-radius: 0.3rem;
+  }
+  .md-preview pre {
+    overflow-x: auto;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background-color: var(--color-background);
+  }
+  .md-preview pre code {
+    padding: 0;
+    background: none;
+  }
+  .md-preview table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+  }
+  .md-preview th,
+  .md-preview td {
+    border: 1px solid var(--color-border);
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+  }
+  .md-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+  }
+  .md-preview .md-mermaid {
+    overflow-x: auto;
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background-color: var(--color-surface);
+  }
+  .md-preview .md-mermaid-error {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--color-highlight);
+  }
+  .md-preview .hljs-keyword,
+  .md-preview .hljs-built_in,
+  .md-preview .hljs-title {
+    color: var(--color-primary);
+  }
+  .md-preview .hljs-string,
+  .md-preview .hljs-number,
+  .md-preview .hljs-literal {
+    color: var(--color-highlight);
+  }
+  .md-preview .hljs-comment {
+    color: var(--color-muted-foreground);
+  }
+}
