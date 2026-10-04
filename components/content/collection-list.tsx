@@ -9,6 +9,7 @@ import { COLLECTIONS, type CollectionKey, type ContentItem } from "@/lib/collect
 import { deleteItem } from "@/lib/content";
 import { DeleteDialog } from "./delete-dialog";
 import { useNotice } from "./notice-provider";
+import { StatusBadge } from "./status-badge";
 
 interface Props {
   collection: CollectionKey;
@@ -76,7 +77,11 @@ export function CollectionList({ collection, items }: Props) {
               key={item.id}
               className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3"
             >
-              <span className="font-mono text-sm text-primary">#{item.position}</span>
+              {def.publishable ? (
+                <StatusBadge status={item.status === "published" ? "published" : "draft"} />
+              ) : (
+                <OrderLabel collection={collection} item={item} />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-foreground">{def.itemTitle(item)}</p>
                 <p className="truncate text-sm text-muted-foreground">
@@ -114,9 +119,49 @@ export function CollectionList({ collection, items }: Props) {
   );
 }
 
-// The first text value that the title does not already show.
+const dateFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const monthFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+// What orders the list: #position where it is manual, the start month for
+// experience (projects and posts show their status instead).
+function OrderLabel({ collection, item }: { collection: CollectionKey; item: ContentItem }) {
+  const def = COLLECTIONS[collection];
+  if (def.fields.some((field) => field.name === "position")) {
+    return <span className="font-mono text-sm text-primary">#{item.position}</span>;
+  }
+  if (def.fields.some((field) => field.kind === "month")) {
+    const month = typeof item.startDate === "string" ? item.startDate : "";
+    const [year, monthNumber] = month.split("-").map(Number);
+    return (
+      <span className="text-sm text-primary">
+        {year && monthNumber
+          ? monthFormat.format(new Date(Date.UTC(year, monthNumber - 1, 1)))
+          : "No start month"}
+      </span>
+    );
+  }
+  return null;
+}
+
+// Publishable items show their public path (and publication date); others
+// the first text value that the title does not already show.
 function secondaryText(collection: CollectionKey, item: ContentItem): string {
   const def = COLLECTIONS[collection];
+  if (def.publicBase) {
+    const path = `${def.publicBase}/${typeof item.slug === "string" ? item.slug : ""}`;
+    return item.status === "published" && item.publishedAt
+      ? `${path} · ${dateFormat.format(new Date(item.publishedAt))}`
+      : path;
+  }
   const title = def.itemTitle(item);
   for (const field of def.fields) {
     const value = item[field.name];

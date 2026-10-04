@@ -30,8 +30,8 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 const ITEMS: ContentItem[] = [
-  { id: 2, position: 0, period: "2024 – now", role: "Engineer", company: "Acme" },
-  { id: 1, position: 1, period: "2020 – 2024", role: "Developer", company: "Globex" },
+  { id: 2, startDate: "2024-03", period: "2024 – now", role: "Engineer", company: "Acme" },
+  { id: 1, startDate: null, period: "2020 – 2024", role: "Developer", company: "Globex" },
 ];
 
 function rows() {
@@ -61,14 +61,61 @@ describe("CollectionList", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the rows in the given order with #position, title and secondary text", () => {
+  it("shows experience rows in the given order with start month, title and secondary text", () => {
     render(<CollectionList collection="experience" items={ITEMS} />);
     const [first, second] = rows();
-    expect(first.textContent).toContain("#0");
+    expect(first.textContent).toContain("Mar 2024");
     expect(first.textContent).toContain("Engineer · Acme");
     expect(first.textContent).toContain("2024 – now");
-    expect(second.textContent).toContain("#1");
+    expect(first.textContent).not.toContain("#");
+    expect(second.textContent).toContain("No start month");
     expect(second.textContent).toContain("Developer · Globex");
+  });
+
+  it("keeps #position for collections that still have it", () => {
+    render(
+      <CollectionList
+        collection="certifications"
+        items={[{ id: 1, position: 3, name: "CKA", issuer: "CNCF" }]}
+      />,
+    );
+    expect(rows()[0].textContent).toContain("#3");
+    expect(rows()[0].textContent).toContain("CNCF");
+  });
+
+  it("shows the status badge and public path of posts", () => {
+    render(
+      <CollectionList
+        collection="posts"
+        items={[
+          { id: 3, title: "Uploads", slug: "uploads", status: "draft", publishedAt: null },
+          {
+            id: 1,
+            title: "Moving to an API",
+            slug: "moving-to-an-api",
+            status: "published",
+            publishedAt: "2026-10-04T12:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+    const [draft, published] = rows();
+    expect(within(draft).getByText("Draft")).toBeTruthy();
+    expect(draft.textContent).toContain("/blog/uploads");
+    expect(within(published).getByText("Published")).toBeTruthy();
+    expect(published.textContent).toContain("/blog/moving-to-an-api · Oct 4, 2026");
+    expect(draft.textContent).not.toContain("#");
+  });
+
+  it("shows the status badge and public path of projects", () => {
+    render(
+      <CollectionList
+        collection="projects"
+        items={[{ id: 1, title: "Portfolio", slug: "portfolio", status: "draft", publishedAt: null }]}
+      />,
+    );
+    expect(within(rows()[0]).getByText("Draft")).toBeTruthy();
+    expect(rows()[0].textContent).toContain("/projects/portfolio");
   });
 
   it("links each row's Edit to /<key>/<id>/edit", () => {
