@@ -23,17 +23,21 @@ describe("MERMAID_CONFIG", () => {
       startOnLoad: false,
       theme: "base",
       securityLevel: "strict",
+      fontFamily: "Inter, sans-serif",
       themeVariables: {
+        darkMode: true,
         background: "#1a2329",
-        mainBkg: "#1a2329",
         primaryColor: "#1a2329",
         primaryTextColor: "#f0f2f5",
         primaryBorderColor: "#20b2a6",
-        secondaryColor: "#1a2329",
-        tertiaryColor: "#1a2329",
+        secondaryColor: "#1f2830",
+        secondaryTextColor: "#f0f2f5",
+        tertiaryColor: "#141a1f",
+        tertiaryTextColor: "#f0f2f5",
         textColor: "#f0f2f5",
-        nodeTextColor: "#f0f2f5",
         lineColor: "#20b2a6",
+        noteBkgColor: "#1f2830",
+        noteTextColor: "#f0f2f5",
       },
     });
   });
@@ -61,8 +65,19 @@ describe("renderMermaidIn", () => {
       "flowchart LR\n  a --> b",
       "graph TD; x",
     ]);
-    expect(host.querySelectorAll(".md-mermaid svg")).toHaveLength(2);
+    expect(host.querySelectorAll(".md-mermaid .md-mermaid-diagram svg")).toHaveLength(2);
     expect(host.querySelector(".mermaid-source")).toBeNull();
+  });
+
+  // As on the site: a wide diagram keeps its width and scrolls inside its block.
+  it("keeps each diagram at its natural width", async () => {
+    mermaid.render.mockResolvedValueOnce({
+      svg: '<svg id="wide" style="max-width: 1200px;"></svg>',
+    });
+    const host = document.createElement("div");
+    host.innerHTML = figure("graph LR; a");
+    await renderMermaidIn(host);
+    expect(host.querySelector<SVGElement>("svg")!.style.minWidth).toBe("1200px");
   });
 
   it("keeps the source and adds a note when a diagram cannot be parsed", async () => {

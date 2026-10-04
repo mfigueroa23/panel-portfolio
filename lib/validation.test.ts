@@ -162,7 +162,7 @@ describe("validateItem — content pages kinds", () => {
     kind: "slug",
     required: true,
     maxLength: 100,
-    reserved: ["tag", "page"],
+    reserved: ["tag", "page", "all", "feed"],
   };
   const summary: FieldDef = {
     name: "summary",
@@ -287,7 +287,7 @@ describe("validateItem — content pages kinds", () => {
     });
 
     it("rejects the reserved post slugs", () => {
-      for (const value of ["tag", "page"]) {
+      for (const value of ["tag", "page", "all", "feed"]) {
         expect(validateItem([slug], { slug: value })).toEqual({
           slug: `"${value}" is reserved. Choose another slug.`,
         });

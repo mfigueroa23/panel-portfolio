@@ -235,7 +235,14 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
     itemTitle: (item) => str(item.title),
     fields: [
       text("title", "Title", 200),
-      { name: "slug", label: "Slug", kind: "slug", required: true, maxLength: 100 },
+      {
+        name: "slug",
+        label: "Slug",
+        kind: "slug",
+        required: true,
+        maxLength: 100,
+        reserved: ["all"],
+      },
       {
         name: "description",
         label: "Description",
@@ -325,7 +332,7 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
         kind: "slug",
         required: true,
         maxLength: 100,
-        reserved: ["tag", "page"],
+        reserved: ["tag", "page", "all", "feed"],
       },
       {
         name: "summary",

@@ -91,7 +91,7 @@ const EXPECTED: Record<
     publishable: true,
     rules: [
       text("title", 200),
-      { name: "slug", kind: "slug", required: true, maxLength: 100 },
+      { name: "slug", kind: "slug", required: true, maxLength: 100, reserved: ["all"] },
       {
         name: "description",
         kind: "textarea",
@@ -147,7 +147,7 @@ const EXPECTED: Record<
     publishable: true,
     rules: [
       text("title", 200),
-      { name: "slug", kind: "slug", required: true, maxLength: 100, reserved: ["tag", "page"] },
+      { name: "slug", kind: "slug", required: true, maxLength: 100, reserved: ["tag", "page", "all", "feed"] },
       {
         name: "summary",
         kind: "textarea",
