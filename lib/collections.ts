@@ -160,3 +160,7 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
     ],
   },
 };
+
+export function isCollectionKey(value: string): value is CollectionKey {
+  return Object.prototype.hasOwnProperty.call(COLLECTIONS, value);
+}

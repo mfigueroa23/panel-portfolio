@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COLLECTIONS, type CollectionKey, type FieldDef } from "./collections";
+import { COLLECTIONS, isCollectionKey, type CollectionKey, type FieldDef } from "./collections";
 
 // Mirrors the API DTOs (plan §4). A DTO change in `api` must update this table
 // and lib/collections.ts under the same spec.
@@ -157,5 +157,14 @@ describe("COLLECTIONS", () => {
     expect(COLLECTIONS["contact-info"].itemTitle({ ...base, label: "Email" })).toBe(
       "Email",
     );
+  });
+});
+
+describe("isCollectionKey", () => {
+  it("accepts the 7 keys and rejects anything else", () => {
+    for (const key of Object.keys(COLLECTIONS)) expect(isCollectionKey(key)).toBe(true);
+    for (const key of ["unknown", "experiences", "", "toString", "__proto__"]) {
+      expect(isCollectionKey(key)).toBe(false);
+    }
   });
 });
