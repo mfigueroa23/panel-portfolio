@@ -12,6 +12,13 @@ export type ApiResult<T> =
   /** Network or CORS failure: the API was never reached. */
   | { ok: false; status: 0 };
 
+export type ApiFailure = Extract<ApiResult<never>, { ok: false }>;
+
+/** The text to show for a failed request: the API's own, or the connection error. */
+export function errorMessage(result: ApiFailure): string {
+  return "error" in result ? result.error : CONNECTION_ERROR;
+}
+
 export interface ApiRequest {
   method: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;

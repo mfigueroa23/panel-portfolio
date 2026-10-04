@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiFetch, CONNECTION_ERROR } from "./api";
+import { apiFetch, CONNECTION_ERROR, errorMessage } from "./api";
 
 vi.mock("./config", () => ({
   API_URL: "http://api.test",
@@ -154,5 +154,15 @@ describe("apiFetch", () => {
     expect(CONNECTION_ERROR).toBe(
       "Could not reach the server. Check your connection and try again.",
     );
+  });
+});
+
+describe("errorMessage", () => {
+  it("returns the API's error text", () => {
+    expect(errorMessage({ ok: false, status: 403, error: "Nope." })).toBe("Nope.");
+  });
+
+  it("returns the connection error when the API was not reached", () => {
+    expect(errorMessage({ ok: false, status: 0 })).toBe(CONNECTION_ERROR);
   });
 });
