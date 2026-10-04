@@ -1,0 +1,11 @@
+# The build stage installs dependencies and builds inside the image.
+.git
+.github
+.next
+.vercel
+.env*
+node_modules
+coverage
+*.log
+Dockerfile
+.dockerignore
