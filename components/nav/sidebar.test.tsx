@@ -12,17 +12,28 @@ vi.mock("@/components/session/session-provider", () => ({
   useSession: () => ({ signOut }),
 }));
 
-const EXPECTED_LINKS = [
-  ["Social links", "/social-links"],
-  ["Technologies", "/technologies"],
-  ["Highlights", "/highlights"],
-  ["Testimonials", "/testimonials"],
-  ["Contact info", "/contact-info"],
-  ["Projects", "/projects"],
-  ["Experience", "/experience"],
-  ["Certifications", "/certifications"],
-  ["Posts", "/posts"],
-];
+const EXPECTED_GROUPS = [
+  [
+    "Home sections",
+    [
+      ["Social links", "/social-links"],
+      ["Technologies", "/technologies"],
+      ["Highlights", "/highlights"],
+      ["Testimonials", "/testimonials"],
+      ["Contact info", "/contact-info"],
+    ],
+  ],
+  [
+    "Pages",
+    [
+      ["Projects", "/projects"],
+      ["Experience", "/experience"],
+      ["Certifications", "/certifications"],
+      ["Posts", "/posts"],
+    ],
+  ],
+  ["Media", [["Files", "/files"]]],
+] as const;
 
 describe("Sidebar", () => {
   beforeEach(() => {
@@ -30,12 +41,26 @@ describe("Sidebar", () => {
     signOut.mockClear();
   });
 
-  it("links to the 9 collections", () => {
+  it("groups the links into Home sections, Pages and Media", () => {
     render(<Sidebar />);
-    const links = within(screen.getByRole("navigation")).getAllByRole("link");
-    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual(
-      EXPECTED_LINKS,
-    );
+    const nav = screen.getByRole("navigation", { name: "Collections" });
+    const groups = within(nav).getAllByRole("group");
+    expect(
+      groups.map((group) => [
+        group.getAttribute("aria-labelledby") &&
+          document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent,
+        within(group)
+          .getAllByRole("link")
+          .map((link) => [link.textContent, link.getAttribute("href")]),
+      ]),
+    ).toEqual(EXPECTED_GROUPS);
+  });
+
+  it("gives every link a target of at least 44 px", () => {
+    render(<Sidebar />);
+    for (const link of within(screen.getByRole("navigation")).getAllByRole("link")) {
+      expect(link.classList.contains("min-h-11")).toBe(true);
+    }
   });
 
   it("marks the current collection as active, also on its sub-pages", () => {
@@ -47,6 +72,12 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "Experience" }).hasAttribute("aria-current")).toBe(
       false,
     );
+  });
+
+  it("marks Files as active on the library", () => {
+    pathname = "/files";
+    render(<Sidebar />);
+    expect(screen.getByRole("link", { name: "Files" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("logs out through the session", () => {
