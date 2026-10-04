@@ -7,3 +7,33 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# AGENTS.md — Portfolio Panel
+
+## Project
+Admin panel for Marco Figueroa's portfolio: edits the site content served by the API (`api.figueroa-sanchez.com`, repo `api`) through its JWT-protected admin endpoints; no backend or database of its own.
+Next.js 16 (App Router, `app/`), React 19, Tailwind CSS v4, TypeScript strict.
+Part of the Portfolio workspace (`../AGENTS.md`) next to `web` and `api`; deployed as a Docker image.
+
+## Commands
+- Install: `pnpm install`
+- Run: `pnpm dev` · build `pnpm build` · serve `pnpm start`
+- Tests: `pnpm test` (Vitest + Testing Library — pending setup; until then lint + build)
+- Lint: `pnpm lint`
+
+## Style and conventions
+- TypeScript 5 strict, ESM, pnpm; `@/*` path alias.
+- Server Components by default; `"use client"` only where interactivity is needed.
+- Components in PascalCase, files kebab-case; Tailwind utilities, no CSS modules unless required.
+- Read `node_modules/next/dist/docs/` before using Next.js APIs; heed deprecations.
+- Code, UI, docs, commits and agent replies in English; commits follow Conventional Commits.
+
+## Rules
+- Read `docs/constitution.md`, the workspace `../AGENTS.md` and `../docs/constitution.md`, and the active spec (`docs/specs/NNN-*/spec.md`; cross-repo specs in `../docs/specs/`) before touching code.
+- The panel never stores secrets: the JWT lives only in memory or an httpOnly cookie, never in the repo, logs or localStorage.
+- Changes to the panel↔api contract (endpoints, DTOs, CORS origins) update `api` under the same spec.
+- Do not add dependencies, change `.github/workflows/`, the `Dockerfile` or deployment targets without asking.
+- Do not change personal content (resume, profile, about, experience, contact data) without explicit instruction.
+
+## When finishing any task
+- Run `pnpm lint`, `pnpm test` (once set up) and `pnpm build`; all must pass.
