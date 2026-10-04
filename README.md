@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Portfolio Panel
+Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (experience, projects, testimonials, highlights, social links, technologies and contact info) through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own.
 
-## Getting Started
+Live at [panel.figueroa-sanchez.com](https://panel.figueroa-sanchez.com).
 
-First, run the development server:
+## Stack
+- [Next.js](https://nextjs.org) 16 (App Router, `proxy.ts`, Server Actions) with React 19
+- TypeScript (strict) and [Tailwind CSS](https://tailwindcss.com) v4 with the web's color tokens, Inter and Playfair Display
+- Google Identity Services for sign-in; the API issues the session token
+- Vitest and Testing Library for tests, ESLint for code quality
+- pnpm as package manager
 
+The frontend lives in the sibling [`web`](../web) project and the backend in [`api`](../api).
+
+## Getting started
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local  # then set API_URL and GOOGLE_CLIENT_ID (see Environment)
+pnpm dev                    # http://localhost:3000 (use -p <port> if the API already uses 3000)
+```
+Signing in locally needs `http://localhost:3000` (or the port you use) as an authorized origin in the Google OAuth client and in the local `cors_origin` table (see [Deployment](#deployment)).
+
+## Environment
+Both values are inlined at build time by `next.config.ts`, so changing them needs a new build.
+
+| Variable | Description |
+|---|---|
+| `API_URL` | Base URL of the API. Defaults to `https://api.figueroa-sanchez.com`. |
+| `GOOGLE_CLIENT_ID` | OAuth web client ID from Google Cloud. Public (it is not a secret), and it must match the API's `google_client_id` property. |
+
+The session lives in memory and in the httpOnly cookie `panel_session`, which expires with the API token (1 hour). It never reaches `localStorage` or `sessionStorage`.
+
+## Scripts
+| Command | Description |
+|---|---|
+| `pnpm dev` | Run the development server |
+| `pnpm build` | Build the standalone production server |
+| `pnpm start` | Run the production build |
+| `pnpm test` | Unit and component tests (`pnpm test <path>` runs one file) |
+| `pnpm lint` | Lint with ESLint |
+
+## Deployment
+Vercel serves production from `main`. A Docker image on the Kubernetes cluster, behind the Cloudflare tunnel, is the fallback. Switching between them is a manual DNS change.
+
+### 1. Google Cloud OAuth client
+In Google Cloud Console → APIs & Services → Credentials, create an **OAuth client ID** of type **Web application**:
+- Authorized JavaScript origins: `https://panel.figueroa-sanchez.com` and `http://localhost:3000` (local development).
+- No redirect URIs are needed: the panel uses the Google Identity Services button, which returns the ID token to the page.
+
+Copy the client ID: it is `GOOGLE_CLIENT_ID` here and `google_client_id` in the API.
+
+### 2. API properties and CORS origin (SQL)
+Run against the API database **before** releasing the API that brings Google sign-in (see the [`api` README](../api/README.md#release-order-for-the-google-sign-in-version-300)):
+```sql
+INSERT INTO property (key, value) VALUES
+  ('google_client_id', '<client id>.apps.googleusercontent.com'),
+  ('admin_google_email', '<owner Google email>')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+
+INSERT INTO cors_origin (origin, enabled) VALUES ('https://panel.figueroa-sanchez.com', true)
+ON CONFLICT (origin) DO UPDATE SET enabled = true, updated_at = now();
+```
+For local development, insert `http://localhost:3000` into the **local** `cors_origin` table only.
+
+### 3. Vercel project
+1. Import the `panel` repository in Vercel (framework preset: Next.js). The Git integration deploys every push to `main` to production; `output: 'standalone'` is ignored there.
+2. Set the environment variables `API_URL` (`https://api.figueroa-sanchez.com`) and `GOOGLE_CLIENT_ID` for Production.
+3. Add the domain `panel.figueroa-sanchez.com` and point the `panel` DNS record to Vercel as it indicates.
+
+Preview deployments build, but sign-in fails there because their origins are authorized neither in Google nor in `cors_origin`.
+
+### 4. DNS failover
+If Vercel is down, switch the `panel` DNS record in Cloudflare from Vercel to the Cloudflare tunnel route that serves `deployment/panel`. Switch it back when Vercel recovers. The origin stays `https://panel.figueroa-sanchez.com`, so Google sign-in and CORS keep working without changes.
+
+### 5. Cluster objects
+`release.yaml` updates an existing deployment, so create these once in the `portfolio` namespace:
+- `deployment/panel` with a container named `panel` running `<DOCKERHUB_USERNAME>/portfolio-panel` on port 3000 (the image runs as `node` and has a health check on `/login`).
+- A `Service` for port 3000 and the ingress (Traefik) host `panel.figueroa-sanchez.com`.
+- The Cloudflare tunnel route for that host (used only while DNS points to the tunnel).
+
+The Docker Hub repository `portfolio-panel`, the GitHub variables `DOCKERHUB_USERNAME` and `GOOGLE_CLIENT_ID`, and the secrets `DOCKERHUB_TOKEN`, `API_URL`, `LOCAL_NETWORK` and `KUBE_CONFIG` must exist too.
+
+To build and run the image locally:
+```bash
+docker build --build-arg API_URL=https://api.figueroa-sanchez.com --build-arg GOOGLE_CLIENT_ID=<client id> -t panel .
+docker run -p 3000:3000 panel
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## CI/CD
+- **Panel Tests** (`.github/workflows/test.yaml`): lint, tests and build on every push and on pull requests to `main`.
+- **Panel Release** (`.github/workflows/release.yaml`): on push to `main`, verifies the build, builds a multi-platform Docker image (`linux/amd64`, `linux/arm64`), pushes it to Docker Hub tagged `latest`, the `package.json` version and `sha-<commit>`, and rolls it out to `deployment/panel`, waiting for the rollout.
+- **Vercel**: deploys `main` to production through its Git integration.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Contributing
+Read [`AGENTS.md`](AGENTS.md) and [`docs/constitution.md`](docs/constitution.md) first. New features start from a spec in `docs/specs/NNN-*/spec.md` (cross-repo specs in `../docs/specs/`), and commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Security
+See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
-## Learn More
+## Contact
+- **Email:** [marco@figueroa-sanchez.com](mailto:marco@figueroa-sanchez.com)
+- **Website:** [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com)
+- **LinkedIn:** [mfigueroa23](https://www.linkedin.com/in/mfigueroa23)
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+[MIT](LICENSE) © 2026 Marco Antonio Figueroa Sanchez

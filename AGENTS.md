@@ -13,12 +13,17 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Project
 Admin panel for Marco Figueroa's portfolio: edits the site content served by the API (`api.figueroa-sanchez.com`, repo `api`) through its JWT-protected admin endpoints; no backend or database of its own.
 Next.js 16 (App Router, `app/`), React 19, Tailwind CSS v4, TypeScript strict.
-Part of the Portfolio workspace (`../AGENTS.md`) next to `web` and `api`; deployed as a Docker image.
+Part of the Portfolio workspace (`../AGENTS.md`) next to `web` and `api`.
+
+## Deployment
+- Primary: Vercel (Git integration) deploys `main` to production at `panel.figueroa-sanchez.com`.
+- Fallback: `release.yaml` builds the Docker image `portfolio-panel` (standalone Next output) and rolls it out to `deployment/panel` in Kubernetes behind the Cloudflare tunnel; switching DNS between them is manual (runbook in `README.md`).
+- `API_URL` and `GOOGLE_CLIENT_ID` are inlined at build time (Vercel env vars, Docker build args, CI secrets/vars).
 
 ## Commands
 - Install: `pnpm install`
 - Run: `pnpm dev` · build `pnpm build` · serve `pnpm start`
-- Tests: `pnpm test` (Vitest + Testing Library — pending setup; until then lint + build)
+- Tests: `pnpm test` (Vitest + Testing Library, jsdom; `pnpm test <path>` runs one file)
 - Lint: `pnpm lint`
 
 ## Style and conventions
@@ -36,4 +41,4 @@ Part of the Portfolio workspace (`../AGENTS.md`) next to `web` and `api`; deploy
 - Do not change personal content (resume, profile, about, experience, contact data) without explicit instruction.
 
 ## When finishing any task
-- Run `pnpm lint`, `pnpm test` (once set up) and `pnpm build`; all must pass.
+- Run `pnpm lint`, `pnpm test` and `pnpm build`; all must pass.
