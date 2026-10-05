@@ -63,7 +63,8 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-function toError(
+/** The `{ error, fields? }` of a failed answer; shared with the XHR upload. */
+export function toError(
   payload: unknown,
   status: number,
 ): { error: string; fields?: ApiFieldErrors } {

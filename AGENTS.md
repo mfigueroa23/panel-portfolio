@@ -15,6 +15,12 @@ Admin panel for Marco Figueroa's portfolio: edits the site content served by the
 Next.js 16 (App Router, `app/`), React 19, Tailwind CSS v4, TypeScript strict.
 Part of the Portfolio workspace (`../AGENTS.md`) next to `web` and `api`.
 
+## Content (Spec 003)
+- Collections live in the registry `lib/collections.ts` (mirror of the API DTOs, pinned by `lib/collections.test.ts`), grouped in the navigation as Home sections, Pages (projects, experience, certifications, posts) and Media (files library at `/files`).
+- Projects and posts are publishable: drafts are listed from the admin `…/all` endpoints with the token; the form offers Save draft / Publish / Unpublish and proposes the slug from the title (`lib/slug.ts`).
+- Files (images ≤ 5 MiB, PDF ≤ 10 MiB) are stored in the API database, not here: `lib/files.ts` and `lib/upload.ts` (XHR upload with progress) call `/files`; the library lists, filters, picks and deletes them after showing their references.
+- Markdown bodies use `MarkdownEditor`; the preview is rendered by the API (`POST /markdown/render`) and its Mermaid diagrams by the lazily loaded `mermaid` with `MERMAID_CONFIG`, which must stay equal to the web's.
+
 ## Deployment
 - Primary: Vercel (Git integration) deploys `main` to production at `panel.figueroa-sanchez.com`.
 - Fallback: `release.yaml` builds the Docker image `portfolio-panel` (standalone Next output) and rolls it out to `deployment/panel` in Kubernetes behind the Cloudflare tunnel; switching DNS between them is manual (runbook in `README.md`).

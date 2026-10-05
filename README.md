@@ -1,5 +1,5 @@
 # Portfolio Panel
-Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (experience, projects, testimonials, highlights, social links, technologies and contact info) through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own.
+Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (social links, technologies, highlights, testimonials, contact info, projects, experience, certifications and blog posts), publishes projects and posts, writes their Markdown bodies with a live preview and manages uploaded files through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own: uploaded files are stored in the API database.
 
 Live at [panel.figueroa-sanchez.com](https://panel.figueroa-sanchez.com).
 
@@ -7,10 +7,20 @@ Live at [panel.figueroa-sanchez.com](https://panel.figueroa-sanchez.com).
 - [Next.js](https://nextjs.org) 16 (App Router, `proxy.ts`, Server Actions) with React 19
 - TypeScript (strict) and [Tailwind CSS](https://tailwindcss.com) v4 with the web's color tokens, Inter and Playfair Display
 - Google Identity Services for sign-in; the API issues the session token
+- [Mermaid](https://mermaid.js.org), loaded only when a Markdown preview has a diagram
 - Vitest and Testing Library for tests, ESLint for code quality
 - pnpm as package manager
 
 The frontend lives in the sibling [`web`](../web) project and the backend in [`api`](../api).
+
+## Content
+Spec 003 (`../docs/specs/003-content-pages/`) added the content pages:
+- **Navigation** grouped as Home sections, Pages (projects, experience, certifications, posts) and Media (files). On phones the menu is a full-height drawer with its own scroll and a fixed Log out.
+- **Drafts and publishing** for projects and posts: Save draft, Publish and Unpublish; the slug follows the title until edited or first published; lists show Draft/Published and drafts first. Experience is ordered by the start month and certifications keep a manual position.
+- **Markdown editor** for project, experience and post bodies: toolbar (heading, bold, link, code, Mermaid, insert file), Split/Write/Preview, and a preview rendered by the API (`POST /markdown/render`), so it matches the site.
+- **Files library** at `/files`: images (PNG, JPEG, WebP, GIF, SVG) up to 5 MiB and PDFs up to 10 MiB, uploaded with progress to the API, which stores them in its database. Filter, copy the URL, pick files into fields and bodies, and delete them after seeing which items use them.
+
+The panel v3 needs the api v4 (new endpoints and DTOs): release the api first.
 
 ## Getting started
 ```bash

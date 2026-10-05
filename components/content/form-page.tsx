@@ -5,8 +5,10 @@ import { ItemForm } from "./item-form";
 // Shared frame of the new and edit pages.
 export function FormPage({ collection, item }: { collection: CollectionKey; item?: ContentItem }) {
   const def = COLLECTIONS[collection];
+  // The Markdown editor's split view needs the room of the posts editor mockup.
+  const wide = def.fields.some((field) => field.kind === "markdown");
   return (
-    <section className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+    <section className={`mx-auto w-full px-4 py-8 sm:px-6 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
       <Link href={`/${collection}`} className="text-sm text-muted-foreground hover:text-foreground">
         ← Back to {def.label.toLowerCase()}
       </Link>
