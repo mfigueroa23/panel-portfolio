@@ -21,6 +21,16 @@ Part of the Portfolio workspace (`../AGENTS.md`) next to `web` and `api`.
 - Files (images ≤ 5 MiB, PDF ≤ 10 MiB) are stored in the API database, not here: `lib/files.ts` and `lib/upload.ts` (XHR upload with progress) call `/files`; the library lists, filters, picks and deletes them after showing their references.
 - Markdown bodies use `MarkdownEditor`; the preview is rendered by the API (`POST /markdown/render`) and its Mermaid diagrams by the lazily loaded `mermaid` with `MERMAID_CONFIG`, which must stay equal to the web's.
 
+## Testimonial review (Spec 004)
+- Testimonials are `reviewable` in the registry: the list comes from `GET /content/testimonials/all` with the token, sorted by `byReview` (pending by submission date, newest first, then approved by position); `position` is `createHidden` and `approvedOnly`.
+- A pending item's form shows email, language and submission date read-only and offers Save / Approve (`approveItem`, validates first) / Reject (`DeleteDialog` "Reject testimonial?").
+- `PendingCountProvider` (in `app/(admin)/layout.tsx`) loads `pendingCount` with the token; `NavLinks` shows the badge and `ItemForm` calls `refresh()` after approve or reject.
+
+## Bilingual content (Spec 004)
+- Bilingual registry fields: `FieldDef.bilingual` marks the English field of each text visitors read (plan §3); its Spanish twin is `<name>Es` (`spanishTwin()`), with the same rules and never required. On `references` it means a `titleEs` per row. `spanishOnly` marks `slugEs` (projects, posts). Every bilingual collection has `apiAdminListPath` (`…/all`).
+- `ItemForm` shows "English" / "Spanish" tabs over one values state; the Spanish tab shows only bilingual fields with the English value as hint; empty Spanish values are sent as `null`; `slugEs` follows `slugify(titleEs)` until edited unless published with one; errors open the tab that holds them. `ReferencesField` lives in `components/content/references-field.tsx`.
+- Lists show "Missing Spanish" from the API's `translated === false`.
+
 ## Deployment
 - Primary: Vercel (Git integration) deploys `main` to production at `panel.figueroa-sanchez.com`.
 - Fallback: `release.yaml` builds the Docker image `portfolio-panel` (standalone Next output) and rolls it out to `deployment/panel` in Kubernetes behind the Cloudflare tunnel; switching DNS between them is manual (runbook in `README.md`).

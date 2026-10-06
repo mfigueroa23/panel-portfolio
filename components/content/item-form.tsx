@@ -3,16 +3,20 @@
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { ReauthDialog } from "@/components/auth/reauth-dialog";
+import { usePendingCount } from "@/components/nav/pending-count-provider";
 import { useSession } from "@/components/session/session-provider";
 import { errorMessage, type ApiResult } from "@/lib/api";
 import {
   COLLECTIONS,
+  spanishTwin,
   type CollectionKey,
   type ContentItem,
   type FieldDef,
 } from "@/lib/collections";
 import {
+  approveItem,
   createItem,
+  deleteItem,
   publishItem,
   unpublishItem,
   updateItem,
@@ -20,9 +24,11 @@ import {
 } from "@/lib/content";
 import { slugify } from "@/lib/slug";
 import { validateItem, type ValidationMode } from "@/lib/validation";
+import { DeleteDialog } from "./delete-dialog";
 import { FileField } from "./file-field";
 import { MarkdownEditor } from "./markdown-editor";
 import { useNotice } from "./notice-provider";
+import { ReferencesField, type Reference } from "./references-field";
 import { StatusBadge } from "./status-badge";
 
 interface Props {
@@ -31,7 +37,13 @@ interface Props {
   item?: ContentItem;
 }
 
-type Intent = "save" | "draft" | "publish" | "unpublish";
+type Intent = "save" | "draft" | "publish" | "unpublish" | "approve" | "reject";
+type Lang = "en" | "es";
+
+const TABS: [Lang, string][] = [
+  ["en", "English"],
+  ["es", "Spanish"],
+];
 
 const inputClass =
   "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none aria-invalid:border-red-500";
@@ -41,9 +53,44 @@ const ghostClass =
 const primaryClass =
   "min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60";
 
+const dangerClass =
+  "min-h-11 rounded-lg border border-red-500/40 px-4 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-60";
+
 const ARRAY_KINDS = new Set(["list", "tags", "references"]);
 // Kinds that take the whole row of the two-column layout.
 const WIDE_KINDS = new Set(["markdown", "references"]);
+
+// The fields this form shows and sends: testimonials take no position on
+// create (the API puts them first) nor while pending review.
+function formFields(fields: FieldDef[], item?: ContentItem): FieldDef[] {
+  return fields.filter(
+    (field) =>
+      !(field.createHidden && !item) && !(field.approvedOnly && item?.status !== "approved"),
+  );
+}
+
+// What the Spanish tab shows: the Spanish slug and the Spanish version of each
+// bilingual field (references edit their rows' `titleEs`).
+function spanishFields(fields: FieldDef[]): FieldDef[] {
+  return fields.flatMap((field) => {
+    if (field.spanishOnly) return [field];
+    if (!field.bilingual) return [];
+    return [field.kind === "references" ? field : spanishTwin(field)];
+  });
+}
+
+// Every value the form keeps and sends: the fields plus their Spanish twins.
+function valueFields(fields: FieldDef[]): FieldDef[] {
+  return fields.flatMap((field) =>
+    field.bilingual && field.kind !== "references" ? [field, spanishTwin(field)] : [field],
+  );
+}
+
+// The English field whose value the Spanish tab shows as a hint.
+function englishName(field: FieldDef): string | undefined {
+  if (field.kind === "references") return undefined;
+  return field.name.endsWith("Es") ? field.name.slice(0, -2) : undefined;
+}
 
 function initialValues(fields: FieldDef[], item?: ContentItem): ItemValues {
   const values: ItemValues = {};
@@ -64,6 +111,12 @@ function toPayload(fields: FieldDef[], values: ItemValues): ItemValues {
   for (const field of fields) {
     const value = values[field.name];
     payload[field.name] = !field.required && value === "" ? null : value;
+    if (field.kind === "references" && field.bilingual && Array.isArray(value)) {
+      payload[field.name] = (value as Reference[]).map((row) => ({
+        ...row,
+        titleEs: row.titleEs ? row.titleEs : null,
+      }));
+    }
   }
   return payload;
 }
@@ -76,23 +129,42 @@ function toFieldErrors(fields: Record<string, string[]>): Record<string, string>
 
 export function ItemForm({ collection, item }: Props) {
   const def = COLLECTIONS[collection];
+  const fields = formFields(def.fields, item);
+  const englishTab = fields.filter((field) => !field.spanishOnly);
+  const spanishTab = spanishFields(fields);
+  const bilingual = spanishTab.length > 0;
+  const spanishNames = new Set(
+    spanishTab.filter((field) => field.kind !== "references").map((field) => field.name),
+  );
   const router = useRouter();
   const { token, setToken } = useSession();
   const { notify } = useNotice();
+  const { refresh: refreshPendingCount } = usePendingCount();
   const formId = useId();
   // Values are only ever replaced by the owner's typing, never on failure.
-  const [values, setValues] = useState(() => initialValues(def.fields, item));
+  const [values, setValues] = useState(() => initialValues(valueFields(fields), item));
+  // Both tabs edit the one `values` state, so switching never loses input.
+  const [tab, setTab] = useState<Lang>("en");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<string | null>(null);
   const [pending, setPending] = useState<Intent | null>(null);
   const [reauth, setReauth] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
   // Set once a new item is created, so a refused publish retries as an update.
   const [savedId, setSavedId] = useState(item?.id);
   const hasSlug = def.fields.some((field) => field.kind === "slug");
   // The slug follows the title until the owner edits it, and never once the
   // item has been published (its URL may already be shared).
   const [slugFollows, setSlugFollows] = useState(hasSlug && !item?.publishedAt);
+  // The Spanish slug follows the Spanish title the same way, unless the item
+  // was published with one.
+  const hasSlugEs = def.fields.some((field) => field.name === "slugEs");
+  const [slugEsFollows, setSlugEsFollows] = useState(
+    hasSlugEs && !(item?.publishedAt && item?.slugEs),
+  );
   const published = item?.status === "published";
+  // A visitor submission waiting for review: Save / Approve / Reject.
+  const reviewing = def.reviewable === true && item?.status === "pending";
 
   const setValue = (name: string, value: unknown) =>
     setValues((current) => {
@@ -100,8 +172,21 @@ export function ItemForm({ collection, item }: Props) {
       if (name === "title" && slugFollows && typeof value === "string") {
         next.slug = slugify(value);
       }
+      if (name === "titleEs" && slugEsFollows && typeof value === "string") {
+        next.slugEs = slugify(value);
+      }
       return next;
     });
+
+  // Shows field errors; when none of them is in the open tab, opens the other.
+  function showErrors(errors: Record<string, string>) {
+    setFieldErrors(errors);
+    const names = Object.keys(errors);
+    if (!bilingual || names.length === 0) return;
+    const visible = (name: string) =>
+      name === "references" || spanishNames.has(name) === (tab === "es");
+    if (!names.some(visible)) setTab(tab === "es" ? "en" : "es");
+  }
 
   function failed(result: Extract<ApiResult<unknown>, { ok: false }>) {
     if (result.status === 401) {
@@ -111,9 +196,9 @@ export function ItemForm({ collection, item }: Props) {
       router.push(`/${collection}`);
       router.refresh();
     } else if ((result.status === 400 || result.status === 409) && "fields" in result && result.fields) {
-      setFieldErrors(toFieldErrors(result.fields));
+      showErrors(toFieldErrors(result.fields));
     } else if (result.status === 409 && hasSlug) {
-      setFieldErrors({ slug: errorMessage(result) });
+      showErrors({ slug: errorMessage(result) });
     } else {
       setBanner(errorMessage(result));
     }
@@ -128,13 +213,26 @@ export function ItemForm({ collection, item }: Props) {
   async function run(intent: Intent) {
     setBanner(null);
     const mode: ValidationMode = intent === "draft" || intent === "unpublish" ? "draft" : "publish";
-    const errors = validateItem(def.fields, values, mode);
-    setFieldErrors(errors);
+    // A pending submission may be saved without its English text (a Spanish
+    // submission has none); approving, or editing an approved item, needs it.
+    const checked =
+      reviewing && intent === "save"
+        ? fields.map((field) => (field.bilingual ? { ...field, required: false } : field))
+        : fields;
+    const errors = validateItem(checked, values, mode);
+    showErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
     setPending(intent);
     try {
-      const payload = toPayload(def.fields, values);
+      const payload = toPayload(valueFields(checked), values);
+      if (intent === "approve" && item) {
+        // The API stores these values before making the item public.
+        const result = await approveItem(collection, item.id, payload, token);
+        if (!result.ok) return failed(result);
+        void refreshPendingCount();
+        return done("Testimonial approved.");
+      }
       const saved =
         savedId !== undefined
           ? await updateItem(collection, savedId, payload, token)
@@ -154,6 +252,21 @@ export function ItemForm({ collection, item }: Props) {
       }
       if (intent === "draft") return done("Draft saved.");
       done(item ? "Item updated." : "Item created.");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function reject() {
+    if (!item) return;
+    setBanner(null);
+    setPending("reject");
+    try {
+      const result = await deleteItem(collection, item.id, token);
+      setConfirmReject(false);
+      if (!result.ok) return failed(result);
+      void refreshPendingCount();
+      done("Testimonial rejected.");
     } finally {
       setPending(null);
     }
@@ -180,24 +293,59 @@ export function ItemForm({ collection, item }: Props) {
             {banner}
           </p>
         )}
-        <div className={`grid min-w-0 grid-cols-1 gap-5 ${wide ? "lg:grid-cols-2" : ""}`}>
-          {def.fields.map((field) => (
-            <div key={field.name} className={`min-w-0 ${WIDE_KINDS.has(field.kind) ? "lg:col-span-2" : ""}`}>
-              <Field
-                id={`${formId}-${field.name}`}
-                field={field}
-                value={values[field.name]}
-                error={fieldErrors[field.name]}
-                onChange={(value) => {
-                  if (field.kind === "slug") setSlugFollows(false);
-                  setValue(field.name, value);
-                }}
-                slugPrefix={def.publicBase ? `${def.publicBase}/` : undefined}
-                slugFollows={slugFollows}
-                onUnauthorized={() => setReauth(true)}
-              />
-            </div>
-          ))}
+        {reviewing && item && <SubmissionDetails item={item} />}
+        {bilingual && (
+          <div role="tablist" aria-label="Language" className="flex gap-1 border-b border-border">
+            {TABS.map(([lang, name]) => (
+              <button
+                key={lang}
+                id={`${formId}-tab-${lang}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === lang}
+                aria-controls={`${formId}-panel`}
+                onClick={() => setTab(lang)}
+                className={`-mb-px min-h-11 border-b-2 px-4 text-sm ${
+                  tab === lang
+                    ? "border-primary font-semibold text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+        <div
+          id={`${formId}-panel`}
+          role={bilingual ? "tabpanel" : undefined}
+          aria-labelledby={bilingual ? `${formId}-tab-${tab}` : undefined}
+          className={`grid min-w-0 grid-cols-1 gap-5 ${wide ? "lg:grid-cols-2" : ""}`}
+        >
+          {(tab === "es" ? spanishTab : englishTab).map((field) => {
+            const english = englishName(field);
+            const hint = tab === "es" && english ? values[english] : undefined;
+            return (
+              <div key={field.name} className={`min-w-0 ${WIDE_KINDS.has(field.kind) ? "lg:col-span-2" : ""}`}>
+                <Field
+                  id={`${formId}-${field.name}`}
+                  field={field}
+                  value={values[field.name]}
+                  error={fieldErrors[field.name]}
+                  hint={typeof hint === "string" && hint !== "" ? hint : undefined}
+                  lang={tab}
+                  onChange={(value) => {
+                    if (field.name === "slugEs") setSlugEsFollows(false);
+                    else if (field.kind === "slug") setSlugFollows(false);
+                    setValue(field.name, value);
+                  }}
+                  slugPrefix={def.publicBase ? `${def.publicBase}/` : undefined}
+                  slugFollows={field.name === "slugEs" ? slugEsFollows : slugFollows}
+                  onUnauthorized={() => setReauth(true)}
+                />
+              </div>
+            );
+          })}
         </div>
         {def.publishable ? (
           // A sticky bar on phones (mobile editor mockup); a plain row from lg up.
@@ -225,6 +373,18 @@ export function ItemForm({ collection, item }: Props) {
               )}
             </div>
           </div>
+        ) : reviewing ? (
+          <div className="flex flex-wrap justify-end gap-3">
+            <button type="button" disabled={busy} onClick={() => setConfirmReject(true)} className={dangerClass}>
+              Reject
+            </button>
+            <button type="submit" disabled={busy} className={ghostClass}>
+              {pending === "save" ? "Saving…" : "Save"}
+            </button>
+            <button type="button" disabled={busy} onClick={() => void run("approve")} className={primaryClass}>
+              {pending === "approve" ? "Approving…" : "Approve"}
+            </button>
+          </div>
         ) : (
           <div className="flex justify-end">
             <button
@@ -237,6 +397,15 @@ export function ItemForm({ collection, item }: Props) {
           </div>
         )}
       </form>
+      {confirmReject && item && (
+        <DeleteDialog
+          heading="Reject testimonial?"
+          title={def.itemTitle(item)}
+          pending={pending === "reject"}
+          onCancel={() => setConfirmReject(false)}
+          onConfirm={() => void reject()}
+        />
+      )}
       {reauth && (
         <ReauthDialog
           onSuccess={(fresh) => {
@@ -250,25 +419,97 @@ export function ItemForm({ collection, item }: Props) {
   );
 }
 
+const submittedFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const LANGUAGES: Record<string, string> = { en: "English", es: "Spanish" };
+
+// Read-only facts of a visitor submission; the email is deleted on approval.
+function SubmissionDetails({ item }: { item: ContentItem }) {
+  const headingId = useId();
+  const language = typeof item.language === "string" ? LANGUAGES[item.language] : undefined;
+  const rows: [string, string][] = [
+    ["Email", typeof item.email === "string" ? item.email : "—"],
+    ["Language", language ?? "—"],
+    [
+      "Submitted",
+      typeof item.submittedAt === "string"
+        ? submittedFormat.format(new Date(item.submittedAt))
+        : "—",
+    ],
+  ];
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="rounded-xl border border-border bg-card px-4 py-3"
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h2 id={headingId} className="text-sm font-semibold text-foreground">
+          Submission
+        </h2>
+        <span className="rounded-full bg-highlight/15 px-2.5 py-0.5 text-xs font-semibold text-highlight">
+          Pending
+        </span>
+        {item.notified === false && (
+          <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-semibold text-red-300">
+            Notification not sent
+          </span>
+        )}
+      </div>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="break-words text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 interface FieldProps {
   id: string;
   field: FieldDef;
   value: unknown;
   error?: string;
+  /** Spanish tab: the English value, shown under the input. */
+  hint?: string;
+  lang: Lang;
   onChange: (value: unknown) => void;
   slugPrefix?: string;
   slugFollows: boolean;
   onUnauthorized: () => void;
 }
 
-function Field({ id, field, value, error, onChange, slugPrefix, slugFollows, onUnauthorized }: FieldProps) {
+function Field({
+  id,
+  field,
+  value,
+  error,
+  hint,
+  lang,
+  onChange,
+  slugPrefix,
+  slugFollows,
+  onUnauthorized,
+}: FieldProps) {
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
   const labelId = `${id}-label`;
   const a11y = {
     id,
     "aria-invalid": error ? true : undefined,
-    "aria-describedby": error ? errorId : undefined,
+    "aria-describedby": error ? errorId : hint ? hintId : undefined,
   };
+  const hintText = hint && (
+    <p id={hintId} className="line-clamp-2 text-xs break-words text-muted-foreground">
+      English: {hint}
+    </p>
+  );
   const errorText = error && (
     <p id={errorId} className="text-sm text-red-300">
       {error}
@@ -408,14 +649,16 @@ function Field({ id, field, value, error, onChange, slugPrefix, slugFollows, onU
         />
       )}
       {field.kind === "references" && (
-        <ReferencesInput
+        <ReferencesField
           labelId={labelId}
           a11y={a11y}
           items={items as Reference[]}
           maxItems={field.maxItems}
+          lang={lang}
           onChange={onChange}
         />
       )}
+      {hintText}
       {errorText}
     </div>
   );
@@ -486,80 +729,6 @@ function ChipInput({ a11y, items, maxItems, maxLength, onChange }: ChipInputProp
           Add
         </button>
       </div>
-    </div>
-  );
-}
-
-interface Reference {
-  title: string;
-  url: string;
-}
-
-interface ReferencesInputProps {
-  labelId: string;
-  a11y: { id: string; "aria-invalid"?: boolean; "aria-describedby"?: string };
-  items: Reference[];
-  maxItems?: number;
-  onChange: (items: Reference[]) => void;
-}
-
-function ReferencesInput({ labelId, a11y, items, maxItems, onChange }: ReferencesInputProps) {
-  const full = maxItems !== undefined && items.length >= maxItems;
-  const update = (index: number, change: Partial<Reference>) =>
-    onChange(items.map((item, i) => (i === index ? { ...item, ...change } : item)));
-
-  return (
-    <div
-      id={a11y.id}
-      role="group"
-      aria-labelledby={labelId}
-      aria-describedby={a11y["aria-describedby"]}
-      className="flex min-w-0 flex-col gap-2"
-    >
-      {items.map((reference, index) => {
-        const n = index + 1;
-        return (
-          <div
-            key={index}
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
-          >
-            <input
-              aria-label={`Reference ${n} title`}
-              type="text"
-              placeholder="Title"
-              value={reference.title ?? ""}
-              onChange={(event) => update(index, { title: event.target.value })}
-              className={`${inputClass} col-start-1`}
-            />
-            <input
-              aria-label={`Reference ${n} URL`}
-              type="url"
-              inputMode="url"
-              placeholder="https://…"
-              value={reference.url ?? ""}
-              onChange={(event) => update(index, { url: event.target.value })}
-              className={`${inputClass} col-start-1 sm:col-start-2 sm:row-start-1`}
-            />
-            <button
-              type="button"
-              aria-label={`Remove reference ${n}`}
-              onClick={() => onChange(items.filter((_, i) => i !== index))}
-              className="col-start-2 row-span-2 row-start-1 min-h-11 min-w-11 rounded-lg border border-border text-foreground hover:bg-muted sm:col-start-3 sm:row-span-1"
-            >
-              ×
-            </button>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        aria-label="Add reference"
-        disabled={full}
-        onClick={() => onChange([...items, { title: "", url: "" }])}
-        className="self-start rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-60"
-      >
-        + Add reference
-      </button>
     </div>
   );
 }

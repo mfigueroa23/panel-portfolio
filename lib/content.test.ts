@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  approveItem,
   createItem,
   deleteItem,
   listItems,
+  pendingCount,
   publishItem,
   unpublishItem,
   updateItem,
@@ -40,9 +42,9 @@ describe("content", () => {
   describe("listItems", () => {
     it("reads the public endpoint with no-store and no token", async () => {
       fetchMock.mockResolvedValue(jsonResponse(200, []));
-      await listItems("experience");
+      await listItems("technologies");
       const { url, init, headers } = lastCall();
-      expect(url).toBe("http://api.test/content/experiences");
+      expect(url).toBe("http://api.test/content/technologies");
       expect(init.method).toBe("GET");
       expect(init.cache).toBe("no-store");
       expect(headers.has("Authorization")).toBe(false);
@@ -72,6 +74,11 @@ describe("content", () => {
       expect(headers.get("Authorization")).toBe("Bearer tok.en.value");
       await listItems("projects", "tok.en.value");
       expect(lastCall().url).toBe("http://api.test/content/projects/all");
+      // Bilingual collections (Spec 004) read their raw Spanish fields there too.
+      await listItems("experience", "tok.en.value");
+      expect(lastCall().url).toBe("http://api.test/content/experiences/all");
+      await listItems("testimonials", "tok.en.value");
+      expect(lastCall().url).toBe("http://api.test/content/testimonials/all");
     });
 
     it("sorts projects with drafts first, then by publication date descending", async () => {
@@ -202,6 +209,53 @@ describe("content", () => {
         status: 400,
         error: "Validation failed.",
         fields: { summary: ["Required."] },
+      });
+    });
+  });
+
+  describe("approveItem", () => {
+    it("POSTs the form values to /:id/approve with the token", async () => {
+      const approved = { id: 4, status: "approved", position: 0 };
+      fetchMock.mockResolvedValue(jsonResponse(200, approved));
+      const values = { quote: "Great.", author: "Ada", role: "CTO", avatar: null };
+      expect(await approveItem("testimonials", 4, values, "tok.en.value")).toEqual({
+        ok: true,
+        data: approved,
+      });
+      const { url, init, headers } = lastCall();
+      expect(url).toBe("http://api.test/content/testimonials/4/approve");
+      expect(init.method).toBe("POST");
+      expect(init.body).toBe(JSON.stringify(values));
+      expect(headers.get("Authorization")).toBe("Bearer tok.en.value");
+    });
+
+    it("returns a 404 as an API error", async () => {
+      fetchMock.mockResolvedValue(jsonResponse(404, { error: "Not found." }));
+      expect(await approveItem("testimonials", 99, {}, "t.o.k")).toEqual({
+        ok: false,
+        status: 404,
+        error: "Not found.",
+      });
+    });
+  });
+
+  describe("pendingCount", () => {
+    it("GETs the pending count with the token, never cached", async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, { count: 3 }));
+      expect(await pendingCount("tok.en.value")).toEqual({ ok: true, data: 3 });
+      const { url, init, headers } = lastCall();
+      expect(url).toBe("http://api.test/content/testimonials/pending-count");
+      expect(init.method).toBe("GET");
+      expect(init.cache).toBe("no-store");
+      expect(headers.get("Authorization")).toBe("Bearer tok.en.value");
+    });
+
+    it("returns the API error unchanged", async () => {
+      fetchMock.mockResolvedValue(jsonResponse(401, { error: "Unauthorized" }));
+      expect(await pendingCount("t.o.k")).toEqual({
+        ok: false,
+        status: 401,
+        error: "Unauthorized",
       });
     });
   });

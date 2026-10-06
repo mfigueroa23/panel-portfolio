@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FieldDef } from "./collections";
+import { COLLECTIONS, type FieldDef } from "./collections";
 import { validateItem } from "./validation";
 
 const name: FieldDef = { name: "name", label: "Name", kind: "text", required: true, maxLength: 5 };
@@ -418,6 +418,127 @@ describe("validateItem — content pages kinds", () => {
           references: [ref("Ok", `https://x.test/${"a".repeat(486)}`)],
         }),
       ).toEqual({ references: "Reference 1: URL must be at most 500 characters." });
+    });
+  });
+});
+
+describe("testimonial rules", () => {
+  const fields = COLLECTIONS.testimonials.fields;
+  const valid = { position: 0, quote: "Great work.", author: "Ada", role: "CTO", avatar: "" };
+  const errors = (values: Record<string, unknown>) => validateItem(fields, { ...valid, ...values });
+
+  it("accepts a testimonial without a photo", () => {
+    expect(errors({})).toEqual({});
+    expect(errors({ avatar: null })).toEqual({});
+  });
+
+  it("limits the quote to 500 characters", () => {
+    expect(errors({ quote: "x".repeat(500) })).toEqual({});
+    expect(errors({ quote: "x".repeat(501) })).toEqual({
+      quote: "Quote must be at most 500 characters.",
+    });
+  });
+
+  it("requires the author and role with the DTO limits", () => {
+    expect(errors({ author: "x".repeat(200), role: "y".repeat(200) })).toEqual({});
+    expect(errors({ author: "", role: "y".repeat(201) })).toEqual({
+      author: "Author is required.",
+      role: "Role must be at most 200 characters.",
+    });
+  });
+
+  it("requires the quote", () => {
+    expect(errors({ quote: "" })).toEqual({ quote: "Quote is required." });
+  });
+
+  it("checks the photo as an http(s) URL of at most 500 characters", () => {
+    expect(errors({ avatar: "https://api.test/files/3" })).toEqual({});
+    expect(errors({ avatar: "javascript:alert(1)" })).toEqual({
+      avatar: "Photo must be an http or https URL.",
+    });
+    expect(errors({ avatar: `https://x.test/${"a".repeat(500)}` })).toEqual({
+      avatar: "Photo must be at most 500 characters.",
+    });
+  });
+});
+
+describe("Spanish versions", () => {
+  const posts = COLLECTIONS.posts.fields;
+  const post = {
+    title: "Hello",
+    slug: "hello",
+    slugEs: "",
+    summary: "Short.",
+    coverUrl: "",
+    tags: [],
+    body: "Body",
+    references: [],
+    titleEs: "",
+    summaryEs: "",
+    bodyEs: "",
+  };
+  const errors = (values: Record<string, unknown>, mode: "draft" | "publish" = "publish") =>
+    validateItem(posts, { ...post, ...values }, mode);
+
+  it("are never required, even to publish", () => {
+    expect(errors({})).toEqual({});
+    expect(errors({ titleEs: null, summaryEs: null, bodyEs: null, slugEs: null })).toEqual({});
+  });
+
+  it("take the length limit of their English field", () => {
+    expect(errors({ titleEs: "x".repeat(200), summaryEs: "y".repeat(300) })).toEqual({});
+    expect(errors({ titleEs: "x".repeat(201), summaryEs: "y".repeat(301) })).toEqual({
+      titleEs: "Title must be at most 200 characters.",
+      summaryEs: "Summary must be at most 300 characters.",
+    });
+  });
+
+  it("are checked in drafts too", () => {
+    expect(errors({ titleEs: "x".repeat(201) }, "draft")).toEqual({
+      titleEs: "Title must be at most 200 characters.",
+    });
+  });
+
+  it("limit the Spanish quote of a testimonial to 500 characters", () => {
+    const fields = COLLECTIONS.testimonials.fields;
+    const valid = {
+      position: 0,
+      quote: "Great.",
+      author: "Ada",
+      role: "CTO",
+      avatar: "",
+      quoteEs: "",
+      roleEs: "",
+    };
+    expect(validateItem(fields, { ...valid, quoteEs: "x".repeat(500) })).toEqual({});
+    expect(validateItem(fields, { ...valid, quoteEs: "x".repeat(501), roleEs: "y".repeat(201) })).toEqual({
+      quoteEs: "Quote must be at most 500 characters.",
+      roleEs: "Role must be at most 200 characters.",
+    });
+  });
+
+  it("checks the Spanish slug with the slug pattern and reserved words", () => {
+    expect(errors({ slugEs: "hola-mundo" })).toEqual({});
+    expect(errors({ slugEs: "Hola Mundo" })).toEqual({
+      slugEs: "Use lowercase letters, digits and single hyphens, not at the start or end.",
+    });
+    expect(errors({ slugEs: "tag" })).toEqual({ slugEs: '"tag" is reserved. Choose another slug.' });
+    expect(errors({ slugEs: "x".repeat(101) })).toEqual({
+      slugEs: "Slug must be at most 100 characters.",
+    });
+  });
+
+  it("accepts a Spanish slug without a Spanish title", () => {
+    expect(errors({ slugEs: "hola", titleEs: "" })).toEqual({});
+  });
+
+  it("checks the Spanish title of each reference", () => {
+    const reference = { title: "OWASP", url: "https://owasp.org" };
+    expect(errors({ references: [{ ...reference, titleEs: "" }] })).toEqual({});
+    expect(errors({ references: [{ ...reference, titleEs: null }] })).toEqual({});
+    expect(errors({ references: [{ ...reference, titleEs: "x".repeat(200) }] })).toEqual({});
+    expect(errors({ references: [{ ...reference, titleEs: "x".repeat(201) }] })).toEqual({
+      references: "Reference 1: Spanish title must be at most 200 characters.",
     });
   });
 });

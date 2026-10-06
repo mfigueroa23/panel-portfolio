@@ -21,6 +21,11 @@ vi.mock("@/app/actions/session", () => ({
 const notify = vi.fn();
 vi.mock("./notice-provider", () => ({ useNotice: () => ({ notify }) }));
 
+const refreshCount = vi.fn(async () => {});
+vi.mock("@/components/nav/pending-count-provider", () => ({
+  usePendingCount: () => ({ count: 0, refresh: refreshCount }),
+}));
+
 const uploadFile = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/upload", () => ({ uploadFile }));
 
@@ -79,7 +84,9 @@ describe("ItemForm fields", () => {
     (key) => {
       renderForm(key);
       for (const field of COLLECTIONS[key].fields) {
-        expect(screen.getByLabelText(field.label)).toBeTruthy();
+        // Fields hidden on create (testimonial position) must be absent.
+        if (field.createHidden) expect(screen.queryByLabelText(field.label)).toBeNull();
+        else expect(screen.getByLabelText(field.label)).toBeTruthy();
       }
     },
   );
@@ -474,11 +481,15 @@ describe("ItemForm publish flow", () => {
       body: {
         title: "Hello",
         slug: "hello",
+        slugEs: null,
         summary: null,
         coverUrl: null,
         tags: [],
         body: null,
         references: [],
+        titleEs: null,
+        summaryEs: null,
+        bodyEs: null,
       },
     });
     expect(notify).toHaveBeenCalledWith("Draft saved.");
@@ -637,5 +648,632 @@ describe("ItemForm publish flow", () => {
     });
     expect(screen.getByText("cover.png: File too large.")).toBeTruthy();
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Hello");
+  });
+});
+
+const PENDING: ContentItem = {
+  id: 5,
+  status: "pending",
+  position: null,
+  quote: "Great work.",
+  author: "Grace",
+  role: "CTO",
+  avatar: null,
+  email: "grace@example.com",
+  language: "en",
+  notified: true,
+  submittedAt: "2026-10-05T12:00:00.000Z",
+};
+
+const APPROVED: ContentItem = {
+  id: 1,
+  status: "approved",
+  position: 2,
+  quote: "Fine.",
+  author: "Ada",
+  role: "Lead",
+  avatar: "https://api.test/files/3",
+  email: null,
+  language: null,
+  notified: true,
+  submittedAt: null,
+};
+
+const PENDING_VALUES = {
+  quote: "Great work.",
+  author: "Grace",
+  role: "CTO",
+  avatar: null,
+  quoteEs: null,
+  roleEs: null,
+};
+
+describe("ItemForm testimonial position", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    notify.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for no position or email when creating and sends none", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { ...APPROVED, id: 9, position: 0 }));
+    renderForm("testimonials");
+    expect(screen.queryByLabelText("Position")).toBeNull();
+    expect(screen.queryByLabelText("Email")).toBeNull();
+    type("Quote", "Great.");
+    type("Author", "Ada");
+    type("Role", "CTO");
+    await submit();
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials",
+      method: "POST",
+      body: { quote: "Great.", author: "Ada", role: "CTO", avatar: null, quoteEs: null, roleEs: null },
+    });
+    expect(notify).toHaveBeenCalledWith("Item created.");
+  });
+
+  it("offers the position of an approved testimonial, as today", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, APPROVED));
+    renderForm("testimonials", APPROVED);
+    expect((screen.getByLabelText("Position") as HTMLInputElement).value).toBe("2");
+    type("Position", "0");
+    await submit();
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/1",
+      method: "PUT",
+      body: {
+        position: 0,
+        quote: "Fine.",
+        author: "Ada",
+        role: "Lead",
+        avatar: "https://api.test/files/3",
+        quoteEs: null,
+        roleEs: null,
+      },
+    });
+  });
+
+  it("hides the position of a pending testimonial", () => {
+    renderForm("testimonials", PENDING);
+    expect(screen.queryByLabelText("Position")).toBeNull();
+  });
+});
+
+describe("ItemForm pending details", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the email, language and submission date as read-only", () => {
+    renderForm("testimonials", PENDING);
+    const details = screen.getByRole("region", { name: "Submission" });
+    expect(within(details).getByText("grace@example.com")).toBeTruthy();
+    expect(within(details).getByText("English")).toBeTruthy();
+    expect(within(details).getByText("Oct 5, 2026")).toBeTruthy();
+    expect(within(details).queryByText("Notification not sent")).toBeNull();
+    expect(within(details).queryByRole("textbox")).toBeNull();
+    expect(screen.queryByLabelText("Email")).toBeNull();
+  });
+
+  it("shows Spanish submissions and a failed notification", () => {
+    renderForm("testimonials", { ...PENDING, language: "es", notified: false });
+    const details = screen.getByRole("region", { name: "Submission" });
+    expect(within(details).getByText("Spanish")).toBeTruthy();
+    expect(within(details).getByText("Notification not sent")).toBeTruthy();
+  });
+
+  it("keeps the name, role, quote and photo editable", () => {
+    renderForm("testimonials", PENDING);
+    for (const label of ["Quote", "Author", "Role", "Photo"]) {
+      expect(screen.getByLabelText(label).hasAttribute("readonly")).toBe(false);
+    }
+  });
+
+  it("shows no submission block for approved testimonials", () => {
+    renderForm("testimonials", APPROVED);
+    expect(screen.queryByRole("region", { name: "Submission" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  });
+});
+
+describe("ItemForm approve", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    refresh.mockReset();
+    notify.mockReset();
+    refreshCount.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("offers Save, Approve and Reject for a pending testimonial", () => {
+    renderForm("testimonials", PENDING);
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+  });
+
+  it("Save stores the changes and keeps the testimonial pending", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...PENDING, role: "CEO" }));
+    renderForm("testimonials", PENDING);
+    type("Role", "CEO");
+    await submit();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5",
+      method: "PUT",
+      body: { ...PENDING_VALUES, role: "CEO" },
+    });
+    expect(notify).toHaveBeenCalledWith("Item updated.");
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("Approve validates first: field errors and no request", async () => {
+    renderForm("testimonials", PENDING);
+    type("Quote", "x".repeat(501));
+    type("Author", "");
+    await click("Approve");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fieldError("Quote")).toBe("Quote must be at most 500 characters.");
+    expect(fieldError("Author")).toBe("Author is required.");
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("Approve sends the form's values, updates the pending count and goes back to the list", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...PENDING, status: "approved", position: 0 }));
+    renderForm("testimonials", PENDING);
+    type("Quote", "Great work, really.");
+    await click("Approve");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5/approve",
+      method: "POST",
+      body: { ...PENDING_VALUES, quote: "Great work, really." },
+    });
+    expect(new Headers(fetchMock.mock.calls[0][1]!.headers).get("Authorization")).toBe(
+      "Bearer old.token.value",
+    );
+    expect(refreshCount).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith("Testimonial approved.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("Approve shows the API's field errors", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, { error: "Validation failed.", fields: { role: ["Role is too long."] } }),
+    );
+    renderForm("testimonials", PENDING);
+    await click("Approve");
+    expect(fieldError("Role")).toBe("Role is too long.");
+    expect(push).not.toHaveBeenCalled();
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("401 on Approve offers sign-in, keeps the values and approves with the new token", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, { error: "Unauthorized" }))
+      .mockResolvedValueOnce(jsonResponse(200, { ...PENDING, status: "approved", position: 0 }));
+    renderForm("testimonials", PENDING);
+    type("Role", "CEO");
+    await click("Approve");
+    const dialog = screen.getByRole("dialog", { name: "Session expired" });
+    expect(push).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByText("mock Google sign-in"));
+    });
+    expect((screen.getByLabelText("Role") as HTMLInputElement).value).toBe("CEO");
+    await click("Approve");
+    expect(sent(1)).toEqual({
+      url: "http://api.test/content/testimonials/5/approve",
+      method: "POST",
+      body: { ...PENDING_VALUES, role: "CEO" },
+    });
+    expect(new Headers(fetchMock.mock.calls[1][1]!.headers).get("Authorization")).toBe(
+      "Bearer fresh.token.value",
+    );
+    expect(push).toHaveBeenCalledWith("/testimonials");
+  });
+
+  it("404 on Approve says the item no longer exists and reloads the list", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(404, { error: "Not found." }));
+    renderForm("testimonials", PENDING);
+    await click("Approve");
+    expect(notify).toHaveBeenCalledWith("This item no longer exists.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+});
+
+describe("ItemForm reject", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    refresh.mockReset();
+    notify.mockReset();
+    refreshCount.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function confirmReject() {
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject testimonial?" });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    });
+  }
+
+  it("asks for confirmation, and Cancel changes nothing", () => {
+    renderForm("testimonials", PENDING);
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject testimonial?" });
+    expect(dialog.textContent).toContain("Grace");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes the testimonial, updates the pending count and goes back to the list", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    renderForm("testimonials", PENDING);
+    await confirmReject();
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5",
+      method: "DELETE",
+      body: undefined,
+    });
+    expect(new Headers(fetchMock.mock.calls[0][1]!.headers).get("Authorization")).toBe(
+      "Bearer old.token.value",
+    );
+    expect(refreshCount).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith("Testimonial rejected.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("404 says the item no longer exists and reloads the list", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(404, { error: "Not found." }));
+    renderForm("testimonials", PENDING);
+    await confirmReject();
+    expect(screen.queryByRole("dialog", { name: "Reject testimonial?" })).toBeNull();
+    expect(notify).toHaveBeenCalledWith("This item no longer exists.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("401 offers sign-in and keeps the form", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(401, { error: "Unauthorized" }));
+    renderForm("testimonials", PENDING);
+    type("Role", "CEO");
+    await confirmReject();
+    expect(screen.getByRole("dialog", { name: "Session expired" })).toBeTruthy();
+    expect((screen.getByLabelText("Role") as HTMLInputElement).value).toBe("CEO");
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+});
+
+function tab(name: "English" | "Spanish") {
+  fireEvent.click(screen.getByRole("tab", { name }));
+}
+
+function value(label: string) {
+  return (screen.getByLabelText(label) as HTMLInputElement).value;
+}
+
+describe("ItemForm language tabs", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    notify.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("offers English and Spanish tabs, English first, only where fields are bilingual", () => {
+    renderForm("posts");
+    const tabs = within(screen.getByRole("tablist", { name: "Language" })).getAllByRole("tab");
+    expect(tabs.map((t) => [t.textContent, t.getAttribute("aria-selected")])).toEqual([
+      ["English", "true"],
+      ["Spanish", "false"],
+    ]);
+    cleanupAndRender("technologies");
+    expect(screen.queryByRole("tablist")).toBeNull();
+  });
+
+  it("keeps the input of both languages when switching tabs", () => {
+    renderForm("highlights");
+    type("Title", "Clean code");
+    tab("Spanish");
+    expect(screen.getByRole("tab", { name: "Spanish" }).getAttribute("aria-selected")).toBe("true");
+    expect(value("Title")).toBe("");
+    type("Title", "Código limpio");
+    tab("English");
+    expect(value("Title")).toBe("Clean code");
+    tab("Spanish");
+    expect(value("Title")).toBe("Código limpio");
+  });
+
+  it("sends both languages, an empty Spanish value as null", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 3 }));
+    renderForm("highlights");
+    type("Position", "1");
+    type("Icon", "code");
+    type("Title", "Clean code");
+    type("Description", "Readable.");
+    tab("Spanish");
+    type("Title", "Código limpio");
+    await submit();
+    expect(sent(0).body).toEqual({
+      position: 1,
+      icon: "code",
+      title: "Clean code",
+      description: "Readable.",
+      titleEs: "Código limpio",
+      descriptionEs: null,
+    });
+  });
+
+  it("fills the Spanish values of an item being edited", () => {
+    renderForm("highlights", {
+      id: 3,
+      position: 0,
+      icon: "code",
+      title: "Clean code",
+      description: "Readable.",
+      titleEs: "Código limpio",
+      descriptionEs: null,
+    });
+    tab("Spanish");
+    expect(value("Title")).toBe("Código limpio");
+    expect(value("Description")).toBe("");
+  });
+
+  it("shows in Spanish only the bilingual fields, each with its English value as hint", () => {
+    renderForm("posts");
+    type("Title", "Hello");
+    type("Summary", "Short.");
+    tab("Spanish");
+    for (const label of ["Title", "Slug", "Summary", "Body"]) {
+      expect(screen.getByLabelText(label)).toBeTruthy();
+    }
+    expect(screen.getByRole("group", { name: "References" })).toBeTruthy();
+    for (const label of ["Cover image", "Tags"]) {
+      expect(screen.queryByLabelText(label)).toBeNull();
+    }
+    expect(screen.getByText("English: Hello")).toBeTruthy();
+    expect(screen.getByText("English: Short.")).toBeTruthy();
+    expect(screen.queryByText("English: ")).toBeNull();
+  });
+
+  it("previews the Markdown body of the active tab", () => {
+    renderForm("posts");
+    type("Body", "English body");
+    tab("Spanish");
+    expect((screen.getByLabelText("Body") as HTMLTextAreaElement).value).toBe("");
+    type("Body", "Cuerpo");
+    expect(screen.getByRole("region", { name: "Body preview" })).toBeTruthy();
+    tab("English");
+    expect((screen.getByLabelText("Body") as HTMLTextAreaElement).value).toBe("English body");
+  });
+
+  it("edits the Spanish title of each reference and sends it with the shared URL", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, DRAFT_POST));
+    renderForm("posts");
+    type("Title", "Hello");
+    fireEvent.click(screen.getByRole("button", { name: "Add reference" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add reference" }));
+    type("Reference 1 title", "OWASP");
+    type("Reference 1 URL", "https://owasp.org");
+    type("Reference 2 title", "MDN");
+    type("Reference 2 URL", "https://developer.mozilla.org");
+    tab("Spanish");
+    type("Reference 1 title", "OWASP en español");
+    await click("Save draft");
+    expect(sent(0).body.references).toEqual([
+      { title: "OWASP", url: "https://owasp.org", titleEs: "OWASP en español" },
+      { title: "MDN", url: "https://developer.mozilla.org", titleEs: null },
+    ]);
+  });
+
+  it("shows a Spanish field error and switches to its tab", async () => {
+    renderForm("posts");
+    type("Title", "Hello");
+    tab("Spanish");
+    type("Title", "x".repeat(201));
+    tab("English");
+    await click("Save draft");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "Spanish" }).getAttribute("aria-selected")).toBe("true");
+    expect(fieldError("Title")).toBe("Title must be at most 200 characters.");
+  });
+});
+
+describe("ItemForm Spanish slug", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("follows the Spanish title until the Spanish slug is edited", () => {
+    renderForm("posts");
+    type("Title", "Hello");
+    tab("Spanish");
+    type("Title", "Diseño del Año");
+    expect(value("Slug")).toBe("diseno-del-ano");
+    expect(screen.getByText("Follows the title until you edit it.")).toBeTruthy();
+    type("Slug", "mi-slug");
+    type("Title", "Otro título");
+    expect(value("Slug")).toBe("mi-slug");
+    tab("English");
+    expect(value("Slug")).toBe("hello");
+  });
+
+  it("does not change the Spanish slug of an item published with one", () => {
+    renderForm("posts", { ...PUBLISHED_POST, titleEs: "Hola", slugEs: "hola" });
+    tab("Spanish");
+    type("Title", "Nuevo título");
+    expect(value("Slug")).toBe("hola");
+  });
+
+  it("proposes a Spanish slug for an item published without one", () => {
+    renderForm("posts", { ...PUBLISHED_POST, titleEs: null, slugEs: null });
+    tab("Spanish");
+    type("Title", "Hola mundo");
+    expect(value("Slug")).toBe("hola-mundo");
+  });
+
+  it("sends the Spanish slug", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, DRAFT_POST));
+    renderForm("posts");
+    type("Title", "Hello");
+    tab("Spanish");
+    type("Title", "Hola");
+    await click("Save draft");
+    expect(sent(0).body).toMatchObject({ slug: "hello", titleEs: "Hola", slugEs: "hola" });
+  });
+
+  it("shows a 409 on the Spanish slug in the Spanish tab", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(409, {
+        error: "This slug is already in use.",
+        fields: { slugEs: ["This slug is already in use."] },
+      }),
+    );
+    renderForm("posts");
+    type("Title", "Hello");
+    await click("Save draft");
+    expect(screen.getByRole("tab", { name: "Spanish" }).getAttribute("aria-selected")).toBe("true");
+    expect(fieldError("Slug")).toBe("This slug is already in use.");
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
+describe("ItemForm Spanish testimonial submission", () => {
+  const SPANISH: ContentItem = {
+    ...PENDING,
+    quote: null,
+    role: null,
+    quoteEs: "Gran trabajo.",
+    roleEs: "Directora",
+    language: "es",
+  };
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    notify.mockReset();
+    refreshCount.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the Spanish text and the submission language", () => {
+    renderForm("testimonials", SPANISH);
+    expect(within(screen.getByRole("region", { name: "Submission" })).getByText("Spanish")).toBeTruthy();
+    expect(value("Quote")).toBe("");
+    tab("Spanish");
+    expect(value("Quote")).toBe("Gran trabajo.");
+    expect(value("Role")).toBe("Directora");
+  });
+
+  it("requires the English role and quote to approve, and sends nothing", async () => {
+    renderForm("testimonials", SPANISH);
+    tab("Spanish");
+    await click("Approve");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "English" }).getAttribute("aria-selected")).toBe("true");
+    expect(fieldError("Quote")).toBe("Quote is required.");
+    expect(fieldError("Role")).toBe("Role is required.");
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("saves a pending submission with only Spanish text, English empty as null", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, SPANISH));
+    renderForm("testimonials", SPANISH);
+    tab("Spanish");
+    type("Role", "Directora general");
+    await submit();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5",
+      method: "PUT",
+      body: {
+        quote: null,
+        author: "Grace",
+        role: null,
+        avatar: null,
+        quoteEs: "Gran trabajo.",
+        roleEs: "Directora general",
+      },
+    });
+    expect(notify).toHaveBeenCalledWith("Item updated.");
+  });
+
+  it("still checks the other rules when saving a pending submission", async () => {
+    renderForm("testimonials", SPANISH);
+    type("Author", "");
+    type("Quote", "x".repeat(501));
+    await submit();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fieldError("Author")).toBe("Author is required.");
+    expect(fieldError("Quote")).toBe("Quote must be at most 500 characters.");
+  });
+
+  it("requires the English quote and role to save an approved testimonial", async () => {
+    renderForm("testimonials", { ...APPROVED, quoteEs: "Bien.", roleEs: "Líder" });
+    type("Quote", "");
+    type("Role", "");
+    await submit();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fieldError("Quote")).toBe("Quote is required.");
+    expect(fieldError("Role")).toBe("Role is required.");
+  });
+
+  it("approves once the English text is filled, with both languages", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...SPANISH, status: "approved" }));
+    renderForm("testimonials", SPANISH);
+    type("Quote", "Great work.");
+    type("Role", "Director");
+    await click("Approve");
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5/approve",
+      method: "POST",
+      body: {
+        quote: "Great work.",
+        author: "Grace",
+        role: "Director",
+        avatar: null,
+        quoteEs: "Gran trabajo.",
+        roleEs: "Directora",
+      },
+    });
   });
 });

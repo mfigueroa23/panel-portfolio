@@ -79,8 +79,16 @@ export function CollectionList({ collection, items }: Props) {
             >
               {def.publishable ? (
                 <StatusBadge status={item.status === "published" ? "published" : "draft"} />
+              ) : isPending(collection, item) ? (
+                <PendingBadges item={item} />
               ) : (
                 <OrderLabel collection={collection} item={item} />
+              )}
+              {item.translated === false && (
+                // The API's rule (Spec 004 RF-149): some English text has no Spanish version.
+                <span className="inline-flex shrink-0 items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
+                  Missing Spanish
+                </span>
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-foreground">{def.itemTitle(item)}</p>
@@ -131,6 +139,25 @@ const monthFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+const isPending = (collection: CollectionKey, item: ContentItem) =>
+  COLLECTIONS[collection].reviewable === true && item.status === "pending";
+
+// A visitor submission waiting for review, and whether the owner was emailed.
+function PendingBadges({ item }: { item: ContentItem }) {
+  return (
+    <span className="flex flex-wrap gap-2">
+      <span className="inline-flex shrink-0 items-center rounded-full bg-highlight/15 px-2.5 py-0.5 text-xs font-semibold text-highlight">
+        Pending
+      </span>
+      {item.notified === false && (
+        <span className="inline-flex shrink-0 items-center rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-semibold text-red-300">
+          Notification not sent
+        </span>
+      )}
+    </span>
+  );
+}
+
 // What orders the list: #position where it is manual, the start month for
 // experience (projects and posts show their status instead).
 function OrderLabel({ collection, item }: { collection: CollectionKey; item: ContentItem }) {
@@ -152,10 +179,16 @@ function OrderLabel({ collection, item }: { collection: CollectionKey; item: Con
   return null;
 }
 
-// Publishable items show their public path (and publication date); others
-// the first text value that the title does not already show.
+// Publishable items show their public path (and publication date); pending
+// submissions their submission date; others the first text value that the
+// title does not already show.
 function secondaryText(collection: CollectionKey, item: ContentItem): string {
   const def = COLLECTIONS[collection];
+  if (isPending(collection, item)) {
+    return typeof item.submittedAt === "string"
+      ? `Submitted ${dateFormat.format(new Date(item.submittedAt))}`
+      : "";
+  }
   if (def.publicBase) {
     const path = `${def.publicBase}/${typeof item.slug === "string" ? item.slug : ""}`;
     return item.status === "published" && item.publishedAt
