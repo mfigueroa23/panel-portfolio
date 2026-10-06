@@ -80,3 +80,26 @@ export function unpublishItem(
     token,
   });
 }
+
+/** Reviewable collections: stores the form's values and makes the item public. */
+export function approveItem(
+  key: CollectionKey,
+  id: number,
+  values: ItemValues,
+  token: string,
+): Promise<ApiResult<ContentItem>> {
+  return apiFetch<ContentItem>(`${COLLECTIONS[key].apiPath}/${id}/approve`, {
+    method: "POST",
+    body: values,
+    token,
+  });
+}
+
+/** Number of testimonials waiting for review. */
+export async function pendingCount(token: string): Promise<ApiResult<number>> {
+  const result = await apiFetch<{ count: number }>(
+    `${COLLECTIONS.testimonials.apiPath}/pending-count`,
+    { method: "GET", cache: "no-store", token },
+  );
+  return result.ok ? { ok: true, data: result.data.count } : result;
+}

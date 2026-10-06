@@ -34,6 +34,10 @@ export interface FieldDef {
   reserved?: string[];
   /** `date` kind: the date field this one may not be earlier than. */
   notBefore?: string;
+  /** Not shown (nor sent) when creating an item. */
+  createHidden?: boolean;
+  /** Reviewable collections: shown (and sent) only for approved items. */
+  approvedOnly?: boolean;
 }
 
 export type CollectionKey =
@@ -48,12 +52,14 @@ export type CollectionKey =
   | "posts";
 
 export type ContentStatus = "draft" | "published";
+/** Reviewable collections: visitor submissions wait as pending until approved. */
+export type ReviewStatus = "pending" | "approved";
 
 export interface ContentItem {
   id: number;
-  /** Only in the collections that keep a manual order. */
-  position?: number;
-  status?: ContentStatus;
+  /** Only in the collections that keep a manual order; null while pending. */
+  position?: number | null;
+  status?: ContentStatus | ReviewStatus;
   publishedAt?: string | null;
   [field: string]: unknown;
 }
@@ -71,6 +77,8 @@ export interface CollectionDef {
   fields: FieldDef[];
   /** Has drafts: Save draft / Publish / Unpublish. */
   publishable: boolean;
+  /** Has visitor submissions: pending items offer Save / Approve / Reject. */
+  reviewable?: boolean;
   /** Path of the item pages on the public site (`/<base>/<slug>`). */
   publicBase?: string;
   sort: SortFn;
@@ -92,6 +100,15 @@ export const byPublication: SortFn = (a, b) => {
     if (byDate !== 0) return byDate;
   }
   return b.id - a.id;
+};
+
+/** Pending items first, newest submission first; then approved items by position. */
+export const byReview: SortFn = (a, b) => {
+  const aPending = a.status === "pending";
+  const bPending = b.status === "pending";
+  if (aPending !== bPending) return aPending ? -1 : 1;
+  if (aPending) return str(b.submittedAt).localeCompare(str(a.submittedAt)) || b.id - a.id;
+  return byPosition(a, b);
 };
 
 /** Current entries first, then start month descending, undated last, then creation. */
@@ -200,17 +217,27 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
   testimonials: {
     key: "testimonials",
     apiPath: "/content/testimonials",
+    apiAdminListPath: "/content/testimonials/all",
     label: "Testimonials",
     itemTitle: (item) => str(item.author),
     fields: [
-      position,
-      textarea("quote", "Quote", 5000),
+      // New and approved items go first (API); the order is edited afterwards.
+      { ...position, createHidden: true, approvedOnly: true },
+      textarea("quote", "Quote", 500),
       text("author", "Author", 200),
       text("role", "Role", 200),
-      text("avatar", "Avatar URL", 500),
+      {
+        name: "avatar",
+        label: "Photo",
+        kind: "file",
+        required: false,
+        maxLength: 500,
+        accept: ["image"],
+      },
     ],
     publishable: false,
-    sort: byPosition,
+    reviewable: true,
+    sort: byReview,
   },
   "contact-info": {
     key: "contact-info",

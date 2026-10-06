@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { ReauthDialog } from "@/components/auth/reauth-dialog";
+import { usePendingCount } from "@/components/nav/pending-count-provider";
 import { useSession } from "@/components/session/session-provider";
 import { errorMessage, type ApiResult } from "@/lib/api";
 import {
@@ -12,7 +13,9 @@ import {
   type FieldDef,
 } from "@/lib/collections";
 import {
+  approveItem,
   createItem,
+  deleteItem,
   publishItem,
   unpublishItem,
   updateItem,
@@ -20,6 +23,7 @@ import {
 } from "@/lib/content";
 import { slugify } from "@/lib/slug";
 import { validateItem, type ValidationMode } from "@/lib/validation";
+import { DeleteDialog } from "./delete-dialog";
 import { FileField } from "./file-field";
 import { MarkdownEditor } from "./markdown-editor";
 import { useNotice } from "./notice-provider";
@@ -31,7 +35,7 @@ interface Props {
   item?: ContentItem;
 }
 
-type Intent = "save" | "draft" | "publish" | "unpublish";
+type Intent = "save" | "draft" | "publish" | "unpublish" | "approve" | "reject";
 
 const inputClass =
   "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none aria-invalid:border-red-500";
@@ -41,9 +45,21 @@ const ghostClass =
 const primaryClass =
   "min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60";
 
+const dangerClass =
+  "min-h-11 rounded-lg border border-red-500/40 px-4 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-60";
+
 const ARRAY_KINDS = new Set(["list", "tags", "references"]);
 // Kinds that take the whole row of the two-column layout.
 const WIDE_KINDS = new Set(["markdown", "references"]);
+
+// The fields this form shows and sends: testimonials take no position on
+// create (the API puts them first) nor while pending review.
+function formFields(fields: FieldDef[], item?: ContentItem): FieldDef[] {
+  return fields.filter(
+    (field) =>
+      !(field.createHidden && !item) && !(field.approvedOnly && item?.status !== "approved"),
+  );
+}
 
 function initialValues(fields: FieldDef[], item?: ContentItem): ItemValues {
   const values: ItemValues = {};
@@ -76,16 +92,19 @@ function toFieldErrors(fields: Record<string, string[]>): Record<string, string>
 
 export function ItemForm({ collection, item }: Props) {
   const def = COLLECTIONS[collection];
+  const fields = formFields(def.fields, item);
   const router = useRouter();
   const { token, setToken } = useSession();
   const { notify } = useNotice();
+  const { refresh: refreshPendingCount } = usePendingCount();
   const formId = useId();
   // Values are only ever replaced by the owner's typing, never on failure.
-  const [values, setValues] = useState(() => initialValues(def.fields, item));
+  const [values, setValues] = useState(() => initialValues(fields, item));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<string | null>(null);
   const [pending, setPending] = useState<Intent | null>(null);
   const [reauth, setReauth] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
   // Set once a new item is created, so a refused publish retries as an update.
   const [savedId, setSavedId] = useState(item?.id);
   const hasSlug = def.fields.some((field) => field.kind === "slug");
@@ -93,6 +112,8 @@ export function ItemForm({ collection, item }: Props) {
   // item has been published (its URL may already be shared).
   const [slugFollows, setSlugFollows] = useState(hasSlug && !item?.publishedAt);
   const published = item?.status === "published";
+  // A visitor submission waiting for review: Save / Approve / Reject.
+  const reviewing = def.reviewable === true && item?.status === "pending";
 
   const setValue = (name: string, value: unknown) =>
     setValues((current) => {
@@ -128,13 +149,20 @@ export function ItemForm({ collection, item }: Props) {
   async function run(intent: Intent) {
     setBanner(null);
     const mode: ValidationMode = intent === "draft" || intent === "unpublish" ? "draft" : "publish";
-    const errors = validateItem(def.fields, values, mode);
+    const errors = validateItem(fields, values, mode);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
     setPending(intent);
     try {
-      const payload = toPayload(def.fields, values);
+      const payload = toPayload(fields, values);
+      if (intent === "approve" && item) {
+        // The API stores these values before making the item public.
+        const result = await approveItem(collection, item.id, payload, token);
+        if (!result.ok) return failed(result);
+        void refreshPendingCount();
+        return done("Testimonial approved.");
+      }
       const saved =
         savedId !== undefined
           ? await updateItem(collection, savedId, payload, token)
@@ -154,6 +182,21 @@ export function ItemForm({ collection, item }: Props) {
       }
       if (intent === "draft") return done("Draft saved.");
       done(item ? "Item updated." : "Item created.");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function reject() {
+    if (!item) return;
+    setBanner(null);
+    setPending("reject");
+    try {
+      const result = await deleteItem(collection, item.id, token);
+      setConfirmReject(false);
+      if (!result.ok) return failed(result);
+      void refreshPendingCount();
+      done("Testimonial rejected.");
     } finally {
       setPending(null);
     }
@@ -180,8 +223,9 @@ export function ItemForm({ collection, item }: Props) {
             {banner}
           </p>
         )}
+        {reviewing && item && <SubmissionDetails item={item} />}
         <div className={`grid min-w-0 grid-cols-1 gap-5 ${wide ? "lg:grid-cols-2" : ""}`}>
-          {def.fields.map((field) => (
+          {fields.map((field) => (
             <div key={field.name} className={`min-w-0 ${WIDE_KINDS.has(field.kind) ? "lg:col-span-2" : ""}`}>
               <Field
                 id={`${formId}-${field.name}`}
@@ -225,6 +269,18 @@ export function ItemForm({ collection, item }: Props) {
               )}
             </div>
           </div>
+        ) : reviewing ? (
+          <div className="flex flex-wrap justify-end gap-3">
+            <button type="button" disabled={busy} onClick={() => setConfirmReject(true)} className={dangerClass}>
+              Reject
+            </button>
+            <button type="submit" disabled={busy} className={ghostClass}>
+              {pending === "save" ? "Saving…" : "Save"}
+            </button>
+            <button type="button" disabled={busy} onClick={() => void run("approve")} className={primaryClass}>
+              {pending === "approve" ? "Approving…" : "Approve"}
+            </button>
+          </div>
         ) : (
           <div className="flex justify-end">
             <button
@@ -237,6 +293,15 @@ export function ItemForm({ collection, item }: Props) {
           </div>
         )}
       </form>
+      {confirmReject && item && (
+        <DeleteDialog
+          heading="Reject testimonial?"
+          title={def.itemTitle(item)}
+          pending={pending === "reject"}
+          onCancel={() => setConfirmReject(false)}
+          onConfirm={() => void reject()}
+        />
+      )}
       {reauth && (
         <ReauthDialog
           onSuccess={(fresh) => {
@@ -247,6 +312,58 @@ export function ItemForm({ collection, item }: Props) {
         />
       )}
     </>
+  );
+}
+
+const submittedFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const LANGUAGES: Record<string, string> = { en: "English", es: "Spanish" };
+
+// Read-only facts of a visitor submission; the email is deleted on approval.
+function SubmissionDetails({ item }: { item: ContentItem }) {
+  const headingId = useId();
+  const language = typeof item.language === "string" ? LANGUAGES[item.language] : undefined;
+  const rows: [string, string][] = [
+    ["Email", typeof item.email === "string" ? item.email : "—"],
+    ["Language", language ?? "—"],
+    [
+      "Submitted",
+      typeof item.submittedAt === "string"
+        ? submittedFormat.format(new Date(item.submittedAt))
+        : "—",
+    ],
+  ];
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="rounded-xl border border-border bg-card px-4 py-3"
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h2 id={headingId} className="text-sm font-semibold text-foreground">
+          Submission
+        </h2>
+        <span className="rounded-full bg-highlight/15 px-2.5 py-0.5 text-xs font-semibold text-highlight">
+          Pending
+        </span>
+        {item.notified === false && (
+          <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-semibold text-red-300">
+            Notification not sent
+          </span>
+        )}
+      </div>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="break-words text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

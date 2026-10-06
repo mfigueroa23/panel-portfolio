@@ -1,5 +1,5 @@
 # Portfolio Panel
-Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (social links, technologies, highlights, testimonials, contact info, projects, experience, certifications and blog posts), publishes projects and posts, writes their Markdown bodies with a live preview and manages uploaded files through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own: uploaded files are stored in the API database.
+Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (social links, technologies, highlights, testimonials, contact info, projects, experience, certifications and blog posts), reviews the testimonials visitors submit, publishes projects and posts, writes their Markdown bodies with a live preview and manages uploaded files through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own: uploaded files are stored in the API database.
 
 Live at [panel.figueroa-sanchez.com](https://panel.figueroa-sanchez.com).
 
@@ -19,6 +19,15 @@ Spec 003 (`../docs/specs/003-content-pages/`) added the content pages:
 - **Drafts and publishing** for projects and posts: Save draft, Publish and Unpublish; the slug follows the title until edited or first published; lists show Draft/Published and drafts first. Experience is ordered by the start month and certifications keep a manual position.
 - **Markdown editor** for project, experience and post bodies: toolbar (heading, bold, link, code, Mermaid, insert file), Split/Write/Preview, and a preview rendered by the API (`POST /markdown/render`), so it matches the site.
 - **Files library** at `/files`: images (PNG, JPEG, WebP, GIF, SVG) up to 5 MiB and PDFs up to 10 MiB, uploaded with progress to the API, which stores them in its database. Filter, copy the URL, pick files into fields and bodies, and delete them after seeing which items use them.
+
+## Testimonial review
+Spec 004 (`../docs/specs/004-visitor-testimonials/`) lets visitors submit testimonials from the site; they wait in the panel until the owner reviews them:
+- **Pending badge**: the navigation shows the number of pending testimonials next to Testimonials (`99+` above 99, hidden at 0). It is loaded with the token from `GET /content/testimonials/pending-count` and refreshed after each approval or rejection.
+- **List**: pending submissions first, newest first, labelled "Pending" with their submission date (and "Notification not sent" when the API could not email the owner); approved testimonials follow by position.
+- **Review**: the edit form of a pending testimonial shows its email, language and submission date read-only and offers **Save** (stores the edits, stays pending), **Approve** (validates the form first, then sends its values to `POST /content/testimonials/:id/approve`; the API puts it first and deletes the email) and **Reject** (asks "Reject testimonial?", then deletes it with its email).
+- **Create**: the owner's testimonials need no review, no email and no position (the API puts them first); the position is edited once approved. The photo is optional and picked or uploaded like other files; without one the site shows the author's initials.
+
+The panel v4 needs the api v5 (testimonial review endpoints and DTOs): release the api first.
 
 The panel v3 needs the api v4 (new endpoints and DTOs): release the api first.
 

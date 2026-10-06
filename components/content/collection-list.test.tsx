@@ -118,6 +118,58 @@ describe("CollectionList", () => {
     expect(rows()[0].textContent).toContain("/projects/portfolio");
   });
 
+  it("labels pending testimonials with their submission date and approved ones with #position", () => {
+    render(
+      <CollectionList
+        collection="testimonials"
+        items={[
+          {
+            id: 5,
+            status: "pending",
+            position: null,
+            author: "Grace",
+            role: "CTO",
+            quote: "Great.",
+            notified: true,
+            submittedAt: "2026-10-05T12:00:00.000Z",
+          },
+          { id: 1, status: "approved", position: 0, author: "Ada", role: "Lead", quote: "Fine." },
+        ]}
+      />,
+    );
+    const [pending, approved] = rows();
+    expect(within(pending).getByText("Pending")).toBeTruthy();
+    expect(pending.textContent).toContain("Grace");
+    expect(pending.textContent).toContain("Submitted Oct 5, 2026");
+    expect(pending.textContent).not.toContain("#");
+    expect(within(pending).queryByText("Notification not sent")).toBeNull();
+    expect(within(approved).queryByText("Pending")).toBeNull();
+    expect(approved.textContent).toContain("#0");
+    expect(approved.textContent).toContain("Fine.");
+    expect(approved.textContent).not.toContain("Submitted");
+  });
+
+  it("labels a pending testimonial whose notification failed", () => {
+    render(
+      <CollectionList
+        collection="testimonials"
+        items={[
+          {
+            id: 5,
+            status: "pending",
+            position: null,
+            author: "Grace",
+            role: "CTO",
+            notified: false,
+            submittedAt: "2026-10-05T12:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+    expect(within(rows()[0]).getByText("Notification not sent")).toBeTruthy();
+    expect(within(rows()[0]).getByText("Pending")).toBeTruthy();
+  });
+
   it("links each row's Edit to /<key>/<id>/edit", () => {
     render(<CollectionList collection="experience" items={ITEMS} />);
     const edit = within(rows()[0]).getByRole("link", { name: "Edit" });

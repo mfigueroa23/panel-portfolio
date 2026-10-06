@@ -21,6 +21,11 @@ vi.mock("@/app/actions/session", () => ({
 const notify = vi.fn();
 vi.mock("./notice-provider", () => ({ useNotice: () => ({ notify }) }));
 
+const refreshCount = vi.fn(async () => {});
+vi.mock("@/components/nav/pending-count-provider", () => ({
+  usePendingCount: () => ({ count: 0, refresh: refreshCount }),
+}));
+
 const uploadFile = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/upload", () => ({ uploadFile }));
 
@@ -79,7 +84,9 @@ describe("ItemForm fields", () => {
     (key) => {
       renderForm(key);
       for (const field of COLLECTIONS[key].fields) {
-        expect(screen.getByLabelText(field.label)).toBeTruthy();
+        // Fields hidden on create (testimonial position) must be absent.
+        if (field.createHidden) expect(screen.queryByLabelText(field.label)).toBeNull();
+        else expect(screen.getByLabelText(field.label)).toBeTruthy();
       }
     },
   );
@@ -637,5 +644,315 @@ describe("ItemForm publish flow", () => {
     });
     expect(screen.getByText("cover.png: File too large.")).toBeTruthy();
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Hello");
+  });
+});
+
+const PENDING: ContentItem = {
+  id: 5,
+  status: "pending",
+  position: null,
+  quote: "Great work.",
+  author: "Grace",
+  role: "CTO",
+  avatar: null,
+  email: "grace@example.com",
+  language: "en",
+  notified: true,
+  submittedAt: "2026-10-05T12:00:00.000Z",
+};
+
+const APPROVED: ContentItem = {
+  id: 1,
+  status: "approved",
+  position: 2,
+  quote: "Fine.",
+  author: "Ada",
+  role: "Lead",
+  avatar: "https://api.test/files/3",
+  email: null,
+  language: null,
+  notified: true,
+  submittedAt: null,
+};
+
+const PENDING_VALUES = { quote: "Great work.", author: "Grace", role: "CTO", avatar: null };
+
+describe("ItemForm testimonial position", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    notify.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for no position or email when creating and sends none", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { ...APPROVED, id: 9, position: 0 }));
+    renderForm("testimonials");
+    expect(screen.queryByLabelText("Position")).toBeNull();
+    expect(screen.queryByLabelText("Email")).toBeNull();
+    type("Quote", "Great.");
+    type("Author", "Ada");
+    type("Role", "CTO");
+    await submit();
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials",
+      method: "POST",
+      body: { quote: "Great.", author: "Ada", role: "CTO", avatar: null },
+    });
+    expect(notify).toHaveBeenCalledWith("Item created.");
+  });
+
+  it("offers the position of an approved testimonial, as today", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, APPROVED));
+    renderForm("testimonials", APPROVED);
+    expect((screen.getByLabelText("Position") as HTMLInputElement).value).toBe("2");
+    type("Position", "0");
+    await submit();
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/1",
+      method: "PUT",
+      body: {
+        position: 0,
+        quote: "Fine.",
+        author: "Ada",
+        role: "Lead",
+        avatar: "https://api.test/files/3",
+      },
+    });
+  });
+
+  it("hides the position of a pending testimonial", () => {
+    renderForm("testimonials", PENDING);
+    expect(screen.queryByLabelText("Position")).toBeNull();
+  });
+});
+
+describe("ItemForm pending details", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the email, language and submission date as read-only", () => {
+    renderForm("testimonials", PENDING);
+    const details = screen.getByRole("region", { name: "Submission" });
+    expect(within(details).getByText("grace@example.com")).toBeTruthy();
+    expect(within(details).getByText("English")).toBeTruthy();
+    expect(within(details).getByText("Oct 5, 2026")).toBeTruthy();
+    expect(within(details).queryByText("Notification not sent")).toBeNull();
+    expect(within(details).queryByRole("textbox")).toBeNull();
+    expect(screen.queryByLabelText("Email")).toBeNull();
+  });
+
+  it("shows Spanish submissions and a failed notification", () => {
+    renderForm("testimonials", { ...PENDING, language: "es", notified: false });
+    const details = screen.getByRole("region", { name: "Submission" });
+    expect(within(details).getByText("Spanish")).toBeTruthy();
+    expect(within(details).getByText("Notification not sent")).toBeTruthy();
+  });
+
+  it("keeps the name, role, quote and photo editable", () => {
+    renderForm("testimonials", PENDING);
+    for (const label of ["Quote", "Author", "Role", "Photo"]) {
+      expect(screen.getByLabelText(label).hasAttribute("readonly")).toBe(false);
+    }
+  });
+
+  it("shows no submission block for approved testimonials", () => {
+    renderForm("testimonials", APPROVED);
+    expect(screen.queryByRole("region", { name: "Submission" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  });
+});
+
+describe("ItemForm approve", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    refresh.mockReset();
+    notify.mockReset();
+    refreshCount.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("offers Save, Approve and Reject for a pending testimonial", () => {
+    renderForm("testimonials", PENDING);
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+  });
+
+  it("Save stores the changes and keeps the testimonial pending", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...PENDING, role: "CEO" }));
+    renderForm("testimonials", PENDING);
+    type("Role", "CEO");
+    await submit();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5",
+      method: "PUT",
+      body: { ...PENDING_VALUES, role: "CEO" },
+    });
+    expect(notify).toHaveBeenCalledWith("Item updated.");
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("Approve validates first: field errors and no request", async () => {
+    renderForm("testimonials", PENDING);
+    type("Quote", "x".repeat(501));
+    type("Author", "");
+    await click("Approve");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fieldError("Quote")).toBe("Quote must be at most 500 characters.");
+    expect(fieldError("Author")).toBe("Author is required.");
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("Approve sends the form's values, updates the pending count and goes back to the list", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...PENDING, status: "approved", position: 0 }));
+    renderForm("testimonials", PENDING);
+    type("Quote", "Great work, really.");
+    await click("Approve");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5/approve",
+      method: "POST",
+      body: { ...PENDING_VALUES, quote: "Great work, really." },
+    });
+    expect(new Headers(fetchMock.mock.calls[0][1]!.headers).get("Authorization")).toBe(
+      "Bearer old.token.value",
+    );
+    expect(refreshCount).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith("Testimonial approved.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("Approve shows the API's field errors", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, { error: "Validation failed.", fields: { role: ["Role is too long."] } }),
+    );
+    renderForm("testimonials", PENDING);
+    await click("Approve");
+    expect(fieldError("Role")).toBe("Role is too long.");
+    expect(push).not.toHaveBeenCalled();
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("401 on Approve offers sign-in, keeps the values and approves with the new token", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, { error: "Unauthorized" }))
+      .mockResolvedValueOnce(jsonResponse(200, { ...PENDING, status: "approved", position: 0 }));
+    renderForm("testimonials", PENDING);
+    type("Role", "CEO");
+    await click("Approve");
+    const dialog = screen.getByRole("dialog", { name: "Session expired" });
+    expect(push).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByText("mock Google sign-in"));
+    });
+    expect((screen.getByLabelText("Role") as HTMLInputElement).value).toBe("CEO");
+    await click("Approve");
+    expect(sent(1)).toEqual({
+      url: "http://api.test/content/testimonials/5/approve",
+      method: "POST",
+      body: { ...PENDING_VALUES, role: "CEO" },
+    });
+    expect(new Headers(fetchMock.mock.calls[1][1]!.headers).get("Authorization")).toBe(
+      "Bearer fresh.token.value",
+    );
+    expect(push).toHaveBeenCalledWith("/testimonials");
+  });
+
+  it("404 on Approve says the item no longer exists and reloads the list", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(404, { error: "Not found." }));
+    renderForm("testimonials", PENDING);
+    await click("Approve");
+    expect(notify).toHaveBeenCalledWith("This item no longer exists.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+});
+
+describe("ItemForm reject", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    refresh.mockReset();
+    notify.mockReset();
+    refreshCount.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function confirmReject() {
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject testimonial?" });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    });
+  }
+
+  it("asks for confirmation, and Cancel changes nothing", () => {
+    renderForm("testimonials", PENDING);
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject testimonial?" });
+    expect(dialog.textContent).toContain("Grace");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes the testimonial, updates the pending count and goes back to the list", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    renderForm("testimonials", PENDING);
+    await confirmReject();
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5",
+      method: "DELETE",
+      body: undefined,
+    });
+    expect(new Headers(fetchMock.mock.calls[0][1]!.headers).get("Authorization")).toBe(
+      "Bearer old.token.value",
+    );
+    expect(refreshCount).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith("Testimonial rejected.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("404 says the item no longer exists and reloads the list", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(404, { error: "Not found." }));
+    renderForm("testimonials", PENDING);
+    await confirmReject();
+    expect(screen.queryByRole("dialog", { name: "Reject testimonial?" })).toBeNull();
+    expect(notify).toHaveBeenCalledWith("This item no longer exists.");
+    expect(push).toHaveBeenCalledWith("/testimonials");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("401 offers sign-in and keeps the form", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(401, { error: "Unauthorized" }));
+    renderForm("testimonials", PENDING);
+    type("Role", "CEO");
+    await confirmReject();
+    expect(screen.getByRole("dialog", { name: "Session expired" })).toBeTruthy();
+    expect((screen.getByLabelText("Role") as HTMLInputElement).value).toBe("CEO");
+    expect(refreshCount).not.toHaveBeenCalled();
   });
 });

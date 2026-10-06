@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FieldDef } from "./collections";
+import { COLLECTIONS, type FieldDef } from "./collections";
 import { validateItem } from "./validation";
 
 const name: FieldDef = { name: "name", label: "Name", kind: "text", required: true, maxLength: 5 };
@@ -418,6 +418,46 @@ describe("validateItem — content pages kinds", () => {
           references: [ref("Ok", `https://x.test/${"a".repeat(486)}`)],
         }),
       ).toEqual({ references: "Reference 1: URL must be at most 500 characters." });
+    });
+  });
+});
+
+describe("testimonial rules", () => {
+  const fields = COLLECTIONS.testimonials.fields;
+  const valid = { position: 0, quote: "Great work.", author: "Ada", role: "CTO", avatar: "" };
+  const errors = (values: Record<string, unknown>) => validateItem(fields, { ...valid, ...values });
+
+  it("accepts a testimonial without a photo", () => {
+    expect(errors({})).toEqual({});
+    expect(errors({ avatar: null })).toEqual({});
+  });
+
+  it("limits the quote to 500 characters", () => {
+    expect(errors({ quote: "x".repeat(500) })).toEqual({});
+    expect(errors({ quote: "x".repeat(501) })).toEqual({
+      quote: "Quote must be at most 500 characters.",
+    });
+  });
+
+  it("requires the author and role with the DTO limits", () => {
+    expect(errors({ author: "x".repeat(200), role: "y".repeat(200) })).toEqual({});
+    expect(errors({ author: "", role: "y".repeat(201) })).toEqual({
+      author: "Author is required.",
+      role: "Role must be at most 200 characters.",
+    });
+  });
+
+  it("requires the quote", () => {
+    expect(errors({ quote: "" })).toEqual({ quote: "Quote is required." });
+  });
+
+  it("checks the photo as an http(s) URL of at most 500 characters", () => {
+    expect(errors({ avatar: "https://api.test/files/3" })).toEqual({});
+    expect(errors({ avatar: "javascript:alert(1)" })).toEqual({
+      avatar: "Photo must be an http or https URL.",
+    });
+    expect(errors({ avatar: `https://x.test/${"a".repeat(500)}` })).toEqual({
+      avatar: "Photo must be at most 500 characters.",
     });
   });
 });

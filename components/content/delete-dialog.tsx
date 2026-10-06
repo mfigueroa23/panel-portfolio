@@ -4,12 +4,20 @@ import { useId } from "react";
 
 interface Props {
   title: string;
+  /** The question asked; rejecting a testimonial asks its own. */
+  heading?: string;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function DeleteDialog({ title, pending, onCancel, onConfirm }: Props) {
+export function DeleteDialog({
+  title,
+  heading = "Delete this item?",
+  pending,
+  onCancel,
+  onConfirm,
+}: Props) {
   const headingId = useId();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -20,7 +28,7 @@ export function DeleteDialog({ title, pending, onCancel, onConfirm }: Props) {
         className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
       >
         <h2 id={headingId} className="text-xl font-semibold text-foreground">
-          Delete this item?
+          {heading}
         </h2>
         <p className="mt-3 break-words text-sm text-muted-foreground">{title}</p>
         <div className="mt-6 flex flex-wrap justify-end gap-3">

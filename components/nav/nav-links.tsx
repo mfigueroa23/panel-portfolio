@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import { useId } from "react";
 import { useSession } from "@/components/session/session-provider";
 import { NAV_GROUPS } from "@/lib/collections";
+import { usePendingCount } from "./pending-count-provider";
+
+const REVIEW_HREF = "/testimonials";
 
 // Shared by the desktop sidebar and the mobile drawer. Items are at least
 // 44 px tall, the touch target size on phones.
@@ -17,6 +20,7 @@ export function NavLinks({
 }) {
   const pathname = usePathname();
   const baseId = useId();
+  const { count } = usePendingCount();
 
   return (
     <nav aria-label="Collections" className={`flex flex-col gap-4.5 ${className}`}>
@@ -38,13 +42,25 @@ export function NavLinks({
                   href={href}
                   onClick={onNavigate}
                   aria-current={active ? "page" : undefined}
-                  className={`flex min-h-11 items-center rounded-lg px-3 text-sm transition-colors ${
+                  className={`flex min-h-11 items-center justify-between gap-2 rounded-lg px-3 text-sm transition-colors ${
                     active
                       ? "bg-secondary font-medium text-secondary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
                   {label}
+                  {href === REVIEW_HREF && count > 0 && (
+                    // The space keeps "Testimonials 3 pending" as the link's name.
+                    <>
+                      {" "}
+                      <span
+                        aria-label={`${count} pending`}
+                        className="rounded-full bg-highlight/15 px-2 py-0.5 text-xs font-semibold text-highlight"
+                      >
+                        {count > 99 ? "99+" : count}
+                      </span>
+                    </>
+                  )}
                 </Link>
               );
             })}

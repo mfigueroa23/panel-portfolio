@@ -5,6 +5,7 @@ import {
   byPosition,
   byPublication,
   byRecency,
+  byReview,
   isCollectionKey,
   type CollectionKey,
   type ContentItem,
@@ -65,13 +66,15 @@ const EXPECTED: Record<
   },
   testimonials: {
     apiPath: "/content/testimonials",
+    apiAdminListPath: "/content/testimonials/all",
     publishable: false,
     rules: [
-      position,
-      textarea("quote", 5000),
+      // Not asked on create (the API puts new items first); edited only once approved.
+      { ...position, createHidden: true, approvedOnly: true },
+      textarea("quote", 500),
       text("author", 200),
       text("role", 200),
-      text("avatar", 500),
+      { name: "avatar", kind: "file", required: false, maxLength: 500, accept: ["image"] },
     ],
   },
   "contact-info": {
@@ -264,11 +267,26 @@ describe("COLLECTIONS", () => {
     expect(COLLECTIONS.posts.itemTitle({ id: 1, title: "Hello" })).toBe("Hello");
   });
 
+  it("marks only testimonials as reviewable", () => {
+    const reviewable = Object.values(COLLECTIONS)
+      .filter((def) => def.reviewable)
+      .map((def) => def.key);
+    expect(reviewable).toEqual(["testimonials"]);
+  });
+
+  it("asks for no email when creating a testimonial and offers a photo", () => {
+    const fields = COLLECTIONS.testimonials.fields;
+    expect(fields.some((field) => field.name === "email")).toBe(false);
+    expect(fields.find((field) => field.name === "avatar")!.label).toBe("Photo");
+  });
+
   it("sorts each collection with its own order", () => {
     expect(COLLECTIONS.projects.sort).toBe(byPublication);
     expect(COLLECTIONS.posts.sort).toBe(byPublication);
     expect(COLLECTIONS.experience.sort).toBe(byRecency);
-    for (const key of ALL_KEYS.filter((k) => !["projects", "posts", "experience"].includes(k))) {
+    expect(COLLECTIONS.testimonials.sort).toBe(byReview);
+    const special = ["projects", "posts", "experience", "testimonials"];
+    for (const key of ALL_KEYS.filter((k) => !special.includes(k))) {
       expect(COLLECTIONS[key as CollectionKey].sort).toBe(byPosition);
     }
   });
@@ -297,6 +315,17 @@ describe("sort functions", () => {
       { id: 5, status: "published", publishedAt: "2026-09-01T10:00:00.000Z" },
     ];
     expect(ids([...items].sort(byPublication))).toEqual([4, 2, 3, 5, 1]);
+  });
+
+  it("byReview puts pending items first, newest submission first, then approved by position", () => {
+    const items: ContentItem[] = [
+      { id: 1, status: "approved", position: 1 },
+      { id: 2, status: "pending", position: null, submittedAt: "2026-10-01T10:00:00.000Z" },
+      { id: 3, status: "approved", position: 0 },
+      { id: 4, status: "pending", position: null, submittedAt: "2026-10-03T10:00:00.000Z" },
+      { id: 5, status: "approved", position: 0 },
+    ];
+    expect(ids([...items].sort(byReview))).toEqual([4, 2, 3, 5, 1]);
   });
 
   it("byRecency puts current entries first, then start month descending, undated last", () => {
