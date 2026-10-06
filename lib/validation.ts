@@ -1,4 +1,4 @@
-import type { FieldDef } from "./collections";
+import { spanishTwin, type FieldDef } from "./collections";
 
 /** Drafts need only the always-required fields; publishing needs the rest too. */
 export type ValidationMode = "draft" | "publish";
@@ -14,6 +14,13 @@ export function validateItem(
   for (const field of fields) {
     const error = validateField(field, values[field.name], mode) ?? crossCheck(field, values);
     if (error) errors[field.name] = error;
+    // The Spanish version `<name>Es`: the English rules, never required.
+    // References carry theirs per row (`titleEs`), checked with the rows.
+    if (field.bilingual && field.kind !== "references") {
+      const twin = spanishTwin(field);
+      const twinError = validateField(twin, values[twin.name], mode);
+      if (twinError) errors[twin.name] = twinError;
+    }
   }
   return errors;
 }
@@ -155,11 +162,21 @@ function tagsError(tags: unknown[]): string | null {
 
 function referencesError(references: unknown[]): string | null {
   for (const [index, reference] of references.entries()) {
-    const { title, url } = (reference ?? {}) as { title?: unknown; url?: unknown };
+    const { title, url, titleEs } = (reference ?? {}) as {
+      title?: unknown;
+      url?: unknown;
+      titleEs?: unknown;
+    };
     const prefix = `Reference ${index + 1}:`;
     if (typeof title !== "string" || title === "") return `${prefix} title is required.`;
     if (textLength(title) > MAX_REFERENCE_TITLE) {
       return `${prefix} title must be at most ${MAX_REFERENCE_TITLE} characters.`;
+    }
+    if (!isEmpty(titleEs)) {
+      if (typeof titleEs !== "string") return `${prefix} Spanish title must be text.`;
+      if (textLength(titleEs) > MAX_REFERENCE_TITLE) {
+        return `${prefix} Spanish title must be at most ${MAX_REFERENCE_TITLE} characters.`;
+      }
     }
     if (typeof url !== "string" || url === "") return `${prefix} URL is required.`;
     if (url.length > MAX_REFERENCE_URL) {

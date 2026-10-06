@@ -42,9 +42,9 @@ describe("content", () => {
   describe("listItems", () => {
     it("reads the public endpoint with no-store and no token", async () => {
       fetchMock.mockResolvedValue(jsonResponse(200, []));
-      await listItems("experience");
+      await listItems("technologies");
       const { url, init, headers } = lastCall();
-      expect(url).toBe("http://api.test/content/experiences");
+      expect(url).toBe("http://api.test/content/technologies");
       expect(init.method).toBe("GET");
       expect(init.cache).toBe("no-store");
       expect(headers.has("Authorization")).toBe(false);
@@ -74,6 +74,11 @@ describe("content", () => {
       expect(headers.get("Authorization")).toBe("Bearer tok.en.value");
       await listItems("projects", "tok.en.value");
       expect(lastCall().url).toBe("http://api.test/content/projects/all");
+      // Bilingual collections (Spec 004) read their raw Spanish fields there too.
+      await listItems("experience", "tok.en.value");
+      expect(lastCall().url).toBe("http://api.test/content/experiences/all");
+      await listItems("testimonials", "tok.en.value");
+      expect(lastCall().url).toBe("http://api.test/content/testimonials/all");
     });
 
     it("sorts projects with drafts first, then by publication date descending", async () => {

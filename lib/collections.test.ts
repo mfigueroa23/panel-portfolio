@@ -45,6 +45,17 @@ const markdown = (name: string, publishRequired = false): Rule => ({
   ...(publishRequired ? { publishRequired: true } : {}),
 });
 
+// Plan §3: the English field carries `bilingual`; its Spanish twin is `<name>Es`.
+const bi = (rule: Rule): Rule => ({ ...rule, bilingual: true });
+const slugEs = (reserved: string[]): Rule => ({
+  name: "slugEs",
+  kind: "slug",
+  required: false,
+  maxLength: 100,
+  reserved,
+  spanishOnly: true,
+});
+
 const EXPECTED: Record<
   CollectionKey,
   { apiPath: string; apiAdminListPath?: string; publishable: boolean; rules: Rule[] }
@@ -61,8 +72,14 @@ const EXPECTED: Record<
   },
   highlights: {
     apiPath: "/content/highlights",
+    apiAdminListPath: "/content/highlights/all",
     publishable: false,
-    rules: [position, text("icon", 100), text("title", 200), textarea("description", 5000)],
+    rules: [
+      position,
+      text("icon", 100),
+      bi(text("title", 200)),
+      bi(textarea("description", 5000)),
+    ],
   },
   testimonials: {
     apiPath: "/content/testimonials",
@@ -71,19 +88,20 @@ const EXPECTED: Record<
     rules: [
       // Not asked on create (the API puts new items first); edited only once approved.
       { ...position, createHidden: true, approvedOnly: true },
-      textarea("quote", 500),
+      bi(textarea("quote", 500)),
       text("author", 200),
-      text("role", 200),
+      bi(text("role", 200)),
       { name: "avatar", kind: "file", required: false, maxLength: 500, accept: ["image"] },
     ],
   },
   "contact-info": {
     apiPath: "/content/contact-info",
+    apiAdminListPath: "/content/contact-info/all",
     publishable: false,
     rules: [
       position,
       text("icon", 100),
-      text("label", 100),
+      bi(text("label", 100)),
       text("value", 200),
       text("href", 500),
     ],
@@ -93,15 +111,16 @@ const EXPECTED: Record<
     apiAdminListPath: "/content/projects/all",
     publishable: true,
     rules: [
-      text("title", 200),
+      bi(text("title", 200)),
       { name: "slug", kind: "slug", required: true, maxLength: 100, reserved: ["all"] },
-      {
+      slugEs(["all"]),
+      bi({
         name: "description",
         kind: "textarea",
         required: false,
         publishRequired: true,
         maxLength: 5000,
-      },
+      }),
       {
         name: "image",
         kind: "file",
@@ -113,29 +132,31 @@ const EXPECTED: Record<
       list("tags", 50),
       url("link"),
       url("github"),
-      markdown("body"),
+      bi(markdown("body")),
     ],
   },
   experience: {
     apiPath: "/content/experiences",
+    apiAdminListPath: "/content/experiences/all",
     publishable: false,
     rules: [
-      text("period", 100),
+      bi(text("period", 100)),
       { name: "startDate", kind: "month", required: true },
-      text("role", 200),
+      bi(text("role", 200)),
       text("company", 200),
-      textarea("description", 5000),
+      bi(textarea("description", 5000)),
       list("technologies", 50),
       boolean("current"),
-      markdown("body"),
+      bi(markdown("body")),
     ],
   },
   certifications: {
     apiPath: "/content/certifications",
+    apiAdminListPath: "/content/certifications/all",
     publishable: false,
     rules: [
       position,
-      text("name", 200),
+      bi(text("name", 200)),
       text("issuer", 200),
       { name: "issueDate", kind: "date", required: true },
       { name: "expiryDate", kind: "date", required: false, notBefore: "issueDate" },
@@ -149,19 +170,21 @@ const EXPECTED: Record<
     apiAdminListPath: "/content/posts/all",
     publishable: true,
     rules: [
-      text("title", 200),
+      bi(text("title", 200)),
       { name: "slug", kind: "slug", required: true, maxLength: 100, reserved: ["tag", "page", "all", "feed"] },
-      {
+      slugEs(["tag", "page", "all", "feed"]),
+      bi({
         name: "summary",
         kind: "textarea",
         required: false,
         publishRequired: true,
         maxLength: 300,
-      },
+      }),
       { name: "coverUrl", kind: "file", required: false, maxLength: 500, accept: ["image"] },
       { name: "tags", kind: "tags", required: false, maxItems: 10, maxLength: 30 },
-      markdown("body", true),
-      { name: "references", kind: "references", required: false, maxItems: 30 },
+      bi(markdown("body", true)),
+      // Spanish titles per row (`titleEs`); URLs are shared.
+      bi({ name: "references", kind: "references", required: false, maxItems: 30 }),
     ],
   },
 };
@@ -265,6 +288,41 @@ describe("COLLECTIONS", () => {
     );
     expect(COLLECTIONS.certifications.itemTitle({ ...base, name: "CKA" })).toBe("CKA");
     expect(COLLECTIONS.posts.itemTitle({ id: 1, title: "Hello" })).toBe("Hello");
+  });
+
+  it("marks the bilingual fields of plan §3 and nothing shared", () => {
+    const bilingual = Object.fromEntries(
+      Object.values(COLLECTIONS).map((def) => [
+        def.key,
+        def.fields.filter((field) => field.bilingual).map((field) => field.name),
+      ]),
+    );
+    expect(bilingual).toEqual({
+      "social-links": [],
+      technologies: [],
+      highlights: ["title", "description"],
+      testimonials: ["quote", "role"],
+      "contact-info": ["label"],
+      projects: ["title", "description", "body"],
+      experience: ["period", "role", "description", "body"],
+      certifications: ["name"],
+      posts: ["title", "summary", "body", "references"],
+    });
+  });
+
+  it("gives a Spanish slug only to projects and posts", () => {
+    const withSlugEs = Object.values(COLLECTIONS)
+      .filter((def) => def.fields.some((field) => field.name === "slugEs"))
+      .map((def) => def.key);
+    expect(withSlugEs).toEqual(["projects", "posts"]);
+  });
+
+  it("lists every bilingual collection from its admin endpoint", () => {
+    for (const def of Object.values(COLLECTIONS)) {
+      if (def.fields.some((field) => field.bilingual)) {
+        expect(def.apiAdminListPath).toBe(`${def.apiPath}/all`);
+      }
+    }
   });
 
   it("marks only testimonials as reviewable", () => {

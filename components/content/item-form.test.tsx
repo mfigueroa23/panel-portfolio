@@ -481,11 +481,15 @@ describe("ItemForm publish flow", () => {
       body: {
         title: "Hello",
         slug: "hello",
+        slugEs: null,
         summary: null,
         coverUrl: null,
         tags: [],
         body: null,
         references: [],
+        titleEs: null,
+        summaryEs: null,
+        bodyEs: null,
       },
     });
     expect(notify).toHaveBeenCalledWith("Draft saved.");
@@ -675,7 +679,14 @@ const APPROVED: ContentItem = {
   submittedAt: null,
 };
 
-const PENDING_VALUES = { quote: "Great work.", author: "Grace", role: "CTO", avatar: null };
+const PENDING_VALUES = {
+  quote: "Great work.",
+  author: "Grace",
+  role: "CTO",
+  avatar: null,
+  quoteEs: null,
+  roleEs: null,
+};
 
 describe("ItemForm testimonial position", () => {
   beforeEach(() => {
@@ -701,7 +712,7 @@ describe("ItemForm testimonial position", () => {
     expect(sent(0)).toEqual({
       url: "http://api.test/content/testimonials",
       method: "POST",
-      body: { quote: "Great.", author: "Ada", role: "CTO", avatar: null },
+      body: { quote: "Great.", author: "Ada", role: "CTO", avatar: null, quoteEs: null, roleEs: null },
     });
     expect(notify).toHaveBeenCalledWith("Item created.");
   });
@@ -721,6 +732,8 @@ describe("ItemForm testimonial position", () => {
         author: "Ada",
         role: "Lead",
         avatar: "https://api.test/files/3",
+        quoteEs: null,
+        roleEs: null,
       },
     });
   });
@@ -954,5 +967,270 @@ describe("ItemForm reject", () => {
     expect(screen.getByRole("dialog", { name: "Session expired" })).toBeTruthy();
     expect((screen.getByLabelText("Role") as HTMLInputElement).value).toBe("CEO");
     expect(refreshCount).not.toHaveBeenCalled();
+  });
+});
+
+function tab(name: "English" | "Spanish") {
+  fireEvent.click(screen.getByRole("tab", { name }));
+}
+
+function value(label: string) {
+  return (screen.getByLabelText(label) as HTMLInputElement).value;
+}
+
+describe("ItemForm language tabs", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    notify.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("offers English and Spanish tabs, English first, only where fields are bilingual", () => {
+    renderForm("posts");
+    const tabs = within(screen.getByRole("tablist", { name: "Language" })).getAllByRole("tab");
+    expect(tabs.map((t) => [t.textContent, t.getAttribute("aria-selected")])).toEqual([
+      ["English", "true"],
+      ["Spanish", "false"],
+    ]);
+    cleanupAndRender("technologies");
+    expect(screen.queryByRole("tablist")).toBeNull();
+  });
+
+  it("keeps the input of both languages when switching tabs", () => {
+    renderForm("highlights");
+    type("Title", "Clean code");
+    tab("Spanish");
+    expect(screen.getByRole("tab", { name: "Spanish" }).getAttribute("aria-selected")).toBe("true");
+    expect(value("Title")).toBe("");
+    type("Title", "Código limpio");
+    tab("English");
+    expect(value("Title")).toBe("Clean code");
+    tab("Spanish");
+    expect(value("Title")).toBe("Código limpio");
+  });
+
+  it("sends both languages, an empty Spanish value as null", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 3 }));
+    renderForm("highlights");
+    type("Position", "1");
+    type("Icon", "code");
+    type("Title", "Clean code");
+    type("Description", "Readable.");
+    tab("Spanish");
+    type("Title", "Código limpio");
+    await submit();
+    expect(sent(0).body).toEqual({
+      position: 1,
+      icon: "code",
+      title: "Clean code",
+      description: "Readable.",
+      titleEs: "Código limpio",
+      descriptionEs: null,
+    });
+  });
+
+  it("fills the Spanish values of an item being edited", () => {
+    renderForm("highlights", {
+      id: 3,
+      position: 0,
+      icon: "code",
+      title: "Clean code",
+      description: "Readable.",
+      titleEs: "Código limpio",
+      descriptionEs: null,
+    });
+    tab("Spanish");
+    expect(value("Title")).toBe("Código limpio");
+    expect(value("Description")).toBe("");
+  });
+
+  it("shows in Spanish only the bilingual fields, each with its English value as hint", () => {
+    renderForm("posts");
+    type("Title", "Hello");
+    type("Summary", "Short.");
+    tab("Spanish");
+    for (const label of ["Title", "Slug", "Summary", "Body"]) {
+      expect(screen.getByLabelText(label)).toBeTruthy();
+    }
+    expect(screen.getByRole("group", { name: "References" })).toBeTruthy();
+    for (const label of ["Cover image", "Tags"]) {
+      expect(screen.queryByLabelText(label)).toBeNull();
+    }
+    expect(screen.getByText("English: Hello")).toBeTruthy();
+    expect(screen.getByText("English: Short.")).toBeTruthy();
+    expect(screen.queryByText("English: ")).toBeNull();
+  });
+
+  it("previews the Markdown body of the active tab", () => {
+    renderForm("posts");
+    type("Body", "English body");
+    tab("Spanish");
+    expect((screen.getByLabelText("Body") as HTMLTextAreaElement).value).toBe("");
+    type("Body", "Cuerpo");
+    expect(screen.getByRole("region", { name: "Body preview" })).toBeTruthy();
+    tab("English");
+    expect((screen.getByLabelText("Body") as HTMLTextAreaElement).value).toBe("English body");
+  });
+
+  it("edits the Spanish title of each reference and sends it with the shared URL", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, DRAFT_POST));
+    renderForm("posts");
+    type("Title", "Hello");
+    fireEvent.click(screen.getByRole("button", { name: "Add reference" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add reference" }));
+    type("Reference 1 title", "OWASP");
+    type("Reference 1 URL", "https://owasp.org");
+    type("Reference 2 title", "MDN");
+    type("Reference 2 URL", "https://developer.mozilla.org");
+    tab("Spanish");
+    type("Reference 1 title", "OWASP en español");
+    await click("Save draft");
+    expect(sent(0).body.references).toEqual([
+      { title: "OWASP", url: "https://owasp.org", titleEs: "OWASP en español" },
+      { title: "MDN", url: "https://developer.mozilla.org", titleEs: null },
+    ]);
+  });
+
+  it("shows a Spanish field error and switches to its tab", async () => {
+    renderForm("posts");
+    type("Title", "Hello");
+    tab("Spanish");
+    type("Title", "x".repeat(201));
+    tab("English");
+    await click("Save draft");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "Spanish" }).getAttribute("aria-selected")).toBe("true");
+    expect(fieldError("Title")).toBe("Title must be at most 200 characters.");
+  });
+});
+
+describe("ItemForm Spanish slug", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    push.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("follows the Spanish title until the Spanish slug is edited", () => {
+    renderForm("posts");
+    type("Title", "Hello");
+    tab("Spanish");
+    type("Title", "Diseño del Año");
+    expect(value("Slug")).toBe("diseno-del-ano");
+    expect(screen.getByText("Follows the title until you edit it.")).toBeTruthy();
+    type("Slug", "mi-slug");
+    type("Title", "Otro título");
+    expect(value("Slug")).toBe("mi-slug");
+    tab("English");
+    expect(value("Slug")).toBe("hello");
+  });
+
+  it("does not change the Spanish slug of an item published with one", () => {
+    renderForm("posts", { ...PUBLISHED_POST, titleEs: "Hola", slugEs: "hola" });
+    tab("Spanish");
+    type("Title", "Nuevo título");
+    expect(value("Slug")).toBe("hola");
+  });
+
+  it("proposes a Spanish slug for an item published without one", () => {
+    renderForm("posts", { ...PUBLISHED_POST, titleEs: null, slugEs: null });
+    tab("Spanish");
+    type("Title", "Hola mundo");
+    expect(value("Slug")).toBe("hola-mundo");
+  });
+
+  it("sends the Spanish slug", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, DRAFT_POST));
+    renderForm("posts");
+    type("Title", "Hello");
+    tab("Spanish");
+    type("Title", "Hola");
+    await click("Save draft");
+    expect(sent(0).body).toMatchObject({ slug: "hello", titleEs: "Hola", slugEs: "hola" });
+  });
+
+  it("shows a 409 on the Spanish slug in the Spanish tab", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(409, {
+        error: "This slug is already in use.",
+        fields: { slugEs: ["This slug is already in use."] },
+      }),
+    );
+    renderForm("posts");
+    type("Title", "Hello");
+    await click("Save draft");
+    expect(screen.getByRole("tab", { name: "Spanish" }).getAttribute("aria-selected")).toBe("true");
+    expect(fieldError("Slug")).toBe("This slug is already in use.");
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
+describe("ItemForm Spanish testimonial submission", () => {
+  const SPANISH: ContentItem = {
+    ...PENDING,
+    quote: null,
+    role: null,
+    quoteEs: "Gran trabajo.",
+    roleEs: "Directora",
+    language: "es",
+  };
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    refreshCount.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the Spanish text and the submission language", () => {
+    renderForm("testimonials", SPANISH);
+    expect(within(screen.getByRole("region", { name: "Submission" })).getByText("Spanish")).toBeTruthy();
+    expect(value("Quote")).toBe("");
+    tab("Spanish");
+    expect(value("Quote")).toBe("Gran trabajo.");
+    expect(value("Role")).toBe("Directora");
+  });
+
+  it("requires the English role and quote to approve, and sends nothing", async () => {
+    renderForm("testimonials", SPANISH);
+    tab("Spanish");
+    await click("Approve");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "English" }).getAttribute("aria-selected")).toBe("true");
+    expect(fieldError("Quote")).toBe("Quote is required.");
+    expect(fieldError("Role")).toBe("Role is required.");
+    expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("approves once the English text is filled, with both languages", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...SPANISH, status: "approved" }));
+    renderForm("testimonials", SPANISH);
+    type("Quote", "Great work.");
+    type("Role", "Director");
+    await click("Approve");
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5/approve",
+      method: "POST",
+      body: {
+        quote: "Great work.",
+        author: "Grace",
+        role: "Director",
+        avatar: null,
+        quoteEs: "Gran trabajo.",
+        roleEs: "Directora",
+      },
+    });
   });
 });

@@ -1,5 +1,5 @@
 # Portfolio Panel
-Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (social links, technologies, highlights, testimonials, contact info, projects, experience, certifications and blog posts), reviews the testimonials visitors submit, publishes projects and posts, writes their Markdown bodies with a live preview and manages uploaded files through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own: uploaded files are stored in the API database.
+Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (social links, technologies, highlights, testimonials, contact info, projects, experience, certifications and blog posts), reviews the testimonials visitors submit, writes each text in English and Spanish, publishes projects and posts, writes their Markdown bodies with a live preview and manages uploaded files through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own: uploaded files are stored in the API database.
 
 Live at [panel.figueroa-sanchez.com](https://panel.figueroa-sanchez.com).
 
@@ -28,6 +28,17 @@ Spec 004 (`../docs/specs/004-visitor-testimonials/`) lets visitors submit testim
 - **Create**: the owner's testimonials need no review, no email and no position (the API puts them first); the position is edited once approved. The photo is optional and picked or uploaded like other files; without one the site shows the author's initials.
 
 The panel v4 needs the api v5 (testimonial review endpoints and DTOs): release the api first.
+
+## English and Spanish content
+Spec 004 also adds a Spanish version of the site (`/es`). The panel stays in English, and every text visitors read can be written in both languages:
+- **Bilingual fields**: titles, descriptions, summaries, bodies, roles, periods, labels, names of certifications, testimonial quotes and roles, and reference titles have a Spanish version (`<field>Es`). Names of people and companies, technologies, tags, URLs, dates, images and files are shared.
+- **Language tabs**: the forms of bilingual collections show "English" and "Spanish" tabs over one set of values, so switching never loses input. The Spanish tab shows only the bilingual fields, each with its English value as a hint; references edit a Spanish title per row and keep their URL. The Markdown preview follows the tab being edited.
+- **Rules**: each Spanish value has the rules and limits of its English field and is never required; an empty one is sent as `null`.
+- **Spanish slug** (`slugEs`) for projects and posts: optional, with the format and reserved words of the English slug; it follows the Spanish title until edited, unless the item was published with one. Empty means the Spanish URL uses the English slug; a clash with another item's Spanish URL is shown on the field.
+- **"Missing Spanish"**: lists label the items the API reports as not translated (`translated: false`); such items show in English on the Spanish site. Every bilingual collection is listed from its admin `…/all` endpoint with the token.
+- **Spanish testimonial submissions** arrive with only the Spanish role and quote; the English ones must be filled before approving.
+
+The panel v5 needs the api v6 (bilingual DTOs and admin lists): release the api first.
 
 The panel v3 needs the api v4 (new endpoints and DTOs): release the api first.
 

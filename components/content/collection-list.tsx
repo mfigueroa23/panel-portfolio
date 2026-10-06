@@ -84,6 +84,12 @@ export function CollectionList({ collection, items }: Props) {
               ) : (
                 <OrderLabel collection={collection} item={item} />
               )}
+              {item.translated === false && (
+                // The API's rule (Spec 004 RF-149): some English text has no Spanish version.
+                <span className="inline-flex shrink-0 items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
+                  Missing Spanish
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-foreground">{def.itemTitle(item)}</p>
                 <p className="truncate text-sm text-muted-foreground">

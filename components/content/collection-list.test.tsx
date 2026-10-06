@@ -170,6 +170,23 @@ describe("CollectionList", () => {
     expect(within(rows()[0]).getByText("Pending")).toBeTruthy();
   });
 
+  it("labels items the API reports as not translated", () => {
+    render(
+      <CollectionList
+        collection="highlights"
+        items={[
+          { id: 1, position: 0, icon: "code", title: "Clean code", translated: false },
+          { id: 2, position: 1, icon: "bolt", title: "Fast", translated: true },
+          { id: 3, position: 2, icon: "star", title: "Legacy" },
+        ]}
+      />,
+    );
+    const [missing, translated, unknown] = rows();
+    expect(within(missing).getByText("Missing Spanish")).toBeTruthy();
+    expect(within(translated).queryByText("Missing Spanish")).toBeNull();
+    expect(within(unknown).queryByText("Missing Spanish")).toBeNull();
+  });
+
   it("links each row's Edit to /<key>/<id>/edit", () => {
     render(<CollectionList collection="experience" items={ITEMS} />);
     const edit = within(rows()[0]).getByRole("link", { name: "Edit" });

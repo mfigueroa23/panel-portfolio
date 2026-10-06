@@ -215,3 +215,37 @@ describe("MarkdownEditor live preview", () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("MarkdownEditor active body", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    renderMarkdown.mockReset();
+    renderMarkdown.mockImplementation(async (markdown: string) => ({
+      ok: true,
+      data: { html: `<p>${markdown}</p>`, toc: [], readingMinutes: 1 },
+    }));
+    useMermaid.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("previews the body it receives, so the form's language tabs preview their own body", async () => {
+    const { rerender } = render(
+      <MarkdownEditor id="body" label="Body" value="English body" onChange={() => {}} />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(renderMarkdown).toHaveBeenLastCalledWith("English body", "tok.en.value");
+    expect(screen.getByTestId("markdown-preview").innerHTML).toBe("<p>English body</p>");
+
+    rerender(<MarkdownEditor id="bodyEs" label="Body" value="Cuerpo en español" onChange={() => {}} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(renderMarkdown).toHaveBeenLastCalledWith("Cuerpo en español", "tok.en.value");
+    expect(screen.getByTestId("markdown-preview").innerHTML).toBe("<p>Cuerpo en español</p>");
+  });
+});

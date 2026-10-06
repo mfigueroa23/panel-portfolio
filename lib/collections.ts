@@ -38,6 +38,21 @@ export interface FieldDef {
   createHidden?: boolean;
   /** Reviewable collections: shown (and sent) only for approved items. */
   approvedOnly?: boolean;
+  /**
+   * Has a Spanish version `<name>Es`, edited in the form's Spanish tab with the
+   * English field's rules, never required. References: a `titleEs` per row.
+   */
+  bilingual?: boolean;
+  /** Shown only in the Spanish tab (the Spanish slug `slugEs`). */
+  spanishOnly?: boolean;
+}
+
+/** The Spanish version of a bilingual field: same rules, never required. */
+export function spanishTwin(field: FieldDef): FieldDef {
+  const twin: FieldDef = { ...field, name: `${field.name}Es`, required: false };
+  delete twin.publishRequired;
+  delete twin.bilingual;
+  return twin;
 }
 
 export type CollectionKey =
@@ -180,6 +195,20 @@ const markdown = (name: string, label: string, publishRequired = false): FieldDe
   ...(publishRequired ? { publishRequired: true } : {}),
 });
 
+/** Plan §3: texts visitors read get a Spanish version; names, URLs and dates stay shared. */
+const bi = (field: FieldDef): FieldDef => ({ ...field, bilingual: true });
+
+/** Optional Spanish slug of projects and posts; empty means the English slug. */
+const slugEs = (reserved: string[]): FieldDef => ({
+  name: "slugEs",
+  label: "Slug",
+  kind: "slug",
+  required: false,
+  maxLength: 100,
+  reserved,
+  spanishOnly: true,
+});
+
 // Key order is the order inside the navigation groups.
 export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
   "social-links": {
@@ -203,13 +232,14 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
   highlights: {
     key: "highlights",
     apiPath: "/content/highlights",
+    apiAdminListPath: "/content/highlights/all",
     label: "Highlights",
     itemTitle: (item) => str(item.title),
     fields: [
       position,
       text("icon", "Icon", 100),
-      text("title", "Title", 200),
-      textarea("description", "Description", 5000),
+      bi(text("title", "Title", 200)),
+      bi(textarea("description", "Description", 5000)),
     ],
     publishable: false,
     sort: byPosition,
@@ -223,9 +253,9 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
     fields: [
       // New and approved items go first (API); the order is edited afterwards.
       { ...position, createHidden: true, approvedOnly: true },
-      textarea("quote", "Quote", 500),
+      bi(textarea("quote", "Quote", 500)),
       text("author", "Author", 200),
-      text("role", "Role", 200),
+      bi(text("role", "Role", 200)),
       {
         name: "avatar",
         label: "Photo",
@@ -242,12 +272,13 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
   "contact-info": {
     key: "contact-info",
     apiPath: "/content/contact-info",
+    apiAdminListPath: "/content/contact-info/all",
     label: "Contact info",
     itemTitle: (item) => str(item.label),
     fields: [
       position,
       text("icon", "Icon", 100),
-      text("label", "Label", 100),
+      bi(text("label", "Label", 100)),
       text("value", "Value", 200),
       text("href", "Link URL", 500),
     ],
@@ -261,7 +292,7 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
     label: "Projects",
     itemTitle: (item) => str(item.title),
     fields: [
-      text("title", "Title", 200),
+      bi(text("title", "Title", 200)),
       {
         name: "slug",
         label: "Slug",
@@ -270,14 +301,15 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
         maxLength: 100,
         reserved: ["all"],
       },
-      {
+      slugEs(["all"]),
+      bi({
         name: "description",
         label: "Description",
         kind: "textarea",
         required: false,
         publishRequired: true,
         maxLength: 5000,
-      },
+      }),
       {
         name: "image",
         label: "Image",
@@ -290,7 +322,7 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
       list("tags", "Tags", 50),
       url("link", "Live link"),
       url("github", "Source link"),
-      markdown("body", "Body"),
+      bi(markdown("body", "Body")),
     ],
     publishable: true,
     publicBase: "/projects",
@@ -299,17 +331,18 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
   experience: {
     key: "experience",
     apiPath: "/content/experiences",
+    apiAdminListPath: "/content/experiences/all",
     label: "Experience",
     itemTitle: (item) => `${str(item.role)} · ${str(item.company)}`,
     fields: [
-      text("period", "Period", 100),
+      bi(text("period", "Period", 100)),
       { name: "startDate", label: "Start month", kind: "month", required: true },
-      text("role", "Role", 200),
+      bi(text("role", "Role", 200)),
       text("company", "Company", 200),
-      textarea("description", "Description", 5000),
+      bi(textarea("description", "Description", 5000)),
       list("technologies", "Technologies", 50),
       boolean("current", "Current position"),
-      markdown("body", "Body"),
+      bi(markdown("body", "Body")),
     ],
     publishable: false,
     sort: byRecency,
@@ -317,11 +350,12 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
   certifications: {
     key: "certifications",
     apiPath: "/content/certifications",
+    apiAdminListPath: "/content/certifications/all",
     label: "Certifications",
     itemTitle: (item) => str(item.name),
     fields: [
       position,
-      text("name", "Name", 200),
+      bi(text("name", "Name", 200)),
       text("issuer", "Issuer", 200),
       { name: "issueDate", label: "Issue date", kind: "date", required: true },
       {
@@ -352,7 +386,7 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
     label: "Posts",
     itemTitle: (item) => str(item.title),
     fields: [
-      text("title", "Title", 200),
+      bi(text("title", "Title", 200)),
       {
         name: "slug",
         label: "Slug",
@@ -361,14 +395,15 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
         maxLength: 100,
         reserved: ["tag", "page", "all", "feed"],
       },
-      {
+      slugEs(["tag", "page", "all", "feed"]),
+      bi({
         name: "summary",
         label: "Summary",
         kind: "textarea",
         required: false,
         publishRequired: true,
         maxLength: 300,
-      },
+      }),
       {
         name: "coverUrl",
         label: "Cover image",
@@ -378,8 +413,8 @@ export const COLLECTIONS: Record<CollectionKey, CollectionDef> = {
         accept: ["image"],
       },
       { name: "tags", label: "Tags", kind: "tags", required: false, maxItems: 10, maxLength: 30 },
-      markdown("body", "Body", true),
-      { name: "references", label: "References", kind: "references", required: false, maxItems: 30 },
+      bi(markdown("body", "Body", true)),
+      bi({ name: "references", label: "References", kind: "references", required: false, maxItems: 30 }),
     ],
     publishable: true,
     publicBase: "/blog",
