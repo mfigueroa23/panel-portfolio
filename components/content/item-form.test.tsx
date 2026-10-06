@@ -1186,6 +1186,7 @@ describe("ItemForm Spanish testimonial submission", () => {
 
   beforeEach(() => {
     fetchMock.mockReset();
+    notify.mockReset();
     refreshCount.mockClear();
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -1212,6 +1213,48 @@ describe("ItemForm Spanish testimonial submission", () => {
     expect(fieldError("Quote")).toBe("Quote is required.");
     expect(fieldError("Role")).toBe("Role is required.");
     expect(refreshCount).not.toHaveBeenCalled();
+  });
+
+  it("saves a pending submission with only Spanish text, English empty as null", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, SPANISH));
+    renderForm("testimonials", SPANISH);
+    tab("Spanish");
+    type("Role", "Directora general");
+    await submit();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sent(0)).toEqual({
+      url: "http://api.test/content/testimonials/5",
+      method: "PUT",
+      body: {
+        quote: null,
+        author: "Grace",
+        role: null,
+        avatar: null,
+        quoteEs: "Gran trabajo.",
+        roleEs: "Directora general",
+      },
+    });
+    expect(notify).toHaveBeenCalledWith("Item updated.");
+  });
+
+  it("still checks the other rules when saving a pending submission", async () => {
+    renderForm("testimonials", SPANISH);
+    type("Author", "");
+    type("Quote", "x".repeat(501));
+    await submit();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fieldError("Author")).toBe("Author is required.");
+    expect(fieldError("Quote")).toBe("Quote must be at most 500 characters.");
+  });
+
+  it("requires the English quote and role to save an approved testimonial", async () => {
+    renderForm("testimonials", { ...APPROVED, quoteEs: "Bien.", roleEs: "Líder" });
+    type("Quote", "");
+    type("Role", "");
+    await submit();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fieldError("Quote")).toBe("Quote is required.");
+    expect(fieldError("Role")).toBe("Role is required.");
   });
 
   it("approves once the English text is filled, with both languages", async () => {

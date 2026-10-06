@@ -213,13 +213,19 @@ export function ItemForm({ collection, item }: Props) {
   async function run(intent: Intent) {
     setBanner(null);
     const mode: ValidationMode = intent === "draft" || intent === "unpublish" ? "draft" : "publish";
-    const errors = validateItem(fields, values, mode);
+    // A pending submission may be saved without its English text (a Spanish
+    // submission has none); approving, or editing an approved item, needs it.
+    const checked =
+      reviewing && intent === "save"
+        ? fields.map((field) => (field.bilingual ? { ...field, required: false } : field))
+        : fields;
+    const errors = validateItem(checked, values, mode);
     showErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
     setPending(intent);
     try {
-      const payload = toPayload(valueFields(fields), values);
+      const payload = toPayload(valueFields(checked), values);
       if (intent === "approve" && item) {
         // The API stores these values before making the item public.
         const result = await approveItem(collection, item.id, payload, token);
