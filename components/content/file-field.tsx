@@ -8,7 +8,7 @@ import { errorMessage } from "@/lib/api";
 import type { FieldDef } from "@/lib/collections";
 import { acceptAttribute, fileKind, validateFile, type StoredFile } from "@/lib/files";
 import { uploadFile } from "@/lib/upload";
-import { isHttpUrl } from "@/lib/validation";
+import { safeHttpUrl } from "@/lib/validation";
 
 interface Props {
   id: string;
@@ -65,7 +65,7 @@ export function FileField({ id, field, value, onChange, onUnauthorized, inputPro
   const isImage = current ? fileKind(current.mime) === "image" : !accept.includes("pdf");
   // A typed value reaches the preview's src/href only as an http(s) URL, so a
   // `javascript:` or `data:` value never becomes a live link.
-  const previewUrl = isHttpUrl(value) ? value : null;
+  const previewUrl = safeHttpUrl(value);
 
   return (
     <div className="flex min-w-0 flex-col gap-2">

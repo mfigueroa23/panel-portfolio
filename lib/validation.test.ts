@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COLLECTIONS, type FieldDef } from "./collections";
-import { validateItem } from "./validation";
+import { safeHttpUrl, validateItem } from "./validation";
 
 const name: FieldDef = { name: "name", label: "Name", kind: "text", required: true, maxLength: 5 };
 const description: FieldDef = {
@@ -151,6 +151,26 @@ describe("validateItem", () => {
       current: "Current must be true or false.",
       tags: "Tags must be a list.",
     });
+  });
+});
+
+describe("safeHttpUrl", () => {
+  it("keeps an http(s) URL as is", () => {
+    expect(safeHttpUrl("https://api.test/files/a1")).toBe("https://api.test/files/a1");
+    expect(safeHttpUrl("http://x.test/a?b=1#c")).toBe("http://x.test/a?b=1#c");
+  });
+
+  it.each(["", "x.test", "ftp://x.test", "javascript:alert(1)", "data:text/html,<b>", "https://"])(
+    "refuses %j",
+    (value) => {
+      expect(safeHttpUrl(value)).toBeNull();
+    },
+  );
+
+  it("percent-encodes quotes and angle brackets", () => {
+    expect(safeHttpUrl(`https://x.test/a'b"<c>?q='#h'`)).toBe(
+      "https://x.test/a%27b%22%3Cc%3E?q=%27#h%27",
+    );
   });
 });
 
