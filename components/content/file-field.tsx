@@ -8,6 +8,7 @@ import { errorMessage } from "@/lib/api";
 import type { FieldDef } from "@/lib/collections";
 import { acceptAttribute, fileKind, validateFile, type StoredFile } from "@/lib/files";
 import { uploadFile } from "@/lib/upload";
+import { safeHttpUrl } from "@/lib/validation";
 
 interface Props {
   id: string;
@@ -62,6 +63,9 @@ export function FileField({ id, field, value, onChange, onUnauthorized, inputPro
 
   const current = known?.url === value ? known : null;
   const isImage = current ? fileKind(current.mime) === "image" : !accept.includes("pdf");
+  // A typed value reaches the preview's src/href only as an http(s) URL, so a
+  // `javascript:` or `data:` value never becomes a live link.
+  const previewUrl = safeHttpUrl(value);
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -69,12 +73,14 @@ export function FileField({ id, field, value, onChange, onUnauthorized, inputPro
         <div className="flex h-14 w-22 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface text-xs text-muted-foreground">
           {!value ? (
             "No file"
+          ) : !previewUrl ? (
+            "Invalid URL"
           ) : isImage ? (
             // Files live on the API's origin; next/image would need it as a remote pattern.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt={`${field.label} preview`} className="size-full object-cover" />
+            <img src={previewUrl} alt={`${field.label} preview`} className="size-full object-cover" />
           ) : (
-            <a href={value} target="_blank" rel="noopener noreferrer" className="px-1 text-center text-primary underline-offset-2 hover:underline">
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="px-1 text-center text-primary underline-offset-2 hover:underline">
               {current?.name ?? "Open file"}
             </a>
           )}

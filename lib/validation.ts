@@ -136,6 +136,19 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
+/**
+ * `value` ready for a `src`/`href`, or null when it is not an http(s) URL.
+ * Quotes and angle brackets are percent-encoded too, so the value can never
+ * close an attribute; this is the escape CodeQL recognises as an XSS sanitizer.
+ */
+export function safeHttpUrl(value: string): string | null {
+  if (!isHttpUrl(value)) return null;
+  return new URL(value).href.replace(
+    /["'<>]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
 function isCalendarDate(value: string): boolean {
   if (!DATE_PATTERN.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
