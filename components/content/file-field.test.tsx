@@ -106,6 +106,18 @@ describe("FileField", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
+  it.each([
+    ["an image-only", COVER],
+    ["an image or PDF", CERTIFICATE],
+  ])("never previews a non-http URL in %s field", (_, field) => {
+    render(<Harness field={field} initial="javascript:alert(1)" />);
+    expect(screen.getByText("Invalid URL")).toBeTruthy();
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+    // The typed value stays editable; validation reports it on save.
+    expect((screen.getByLabelText(field.label) as HTMLInputElement).value).toBe("javascript:alert(1)");
+  });
+
   it("shows an empty state without a value", () => {
     render(<Harness field={COVER} />);
     expect(screen.getByText("No file")).toBeTruthy();
