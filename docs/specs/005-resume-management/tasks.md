@@ -26,7 +26,7 @@
   - **Scope:** New `lib/resume.ts` with `ResumeLang`, `RESUME_LANGS`, `LANG_LABELS`, the `ResumeAssignment`/`ResumeAssignments` types that mirror the api DTO (§5), `getAssignments`, `assignResume`, `clearResume` through `apiFetch`, and `publicResumeUrl(lang)` with an explicit `?lang=` (D1, D12). Tests in `lib/resume.test.ts`, mocking `fetch` as `lib/files.test.ts` does.
   - **Done when:** `pnpm test lib/resume.test.ts` passes with U-L1 – U-L5.
 
-- [ ] **T04 — Custom labels for `DeleteDialog`**
+- [x] **T04 — Custom labels for `DeleteDialog`**
   - **RF:** RF-14
   - **Depends on:** T01 (can run in parallel with T02 and T03)
   - **Scope:** `components/content/delete-dialog.tsx` gains the optional `confirmLabel` (default `Delete`) and `pendingLabel` (default `Deleting…`) props (D7). Current callers (`CollectionList`, testimonial reject) stay untouched.

@@ -6,6 +6,9 @@ interface Props {
   title: string;
   /** The question asked; rejecting a testimonial asks its own. */
   heading?: string;
+  /** The confirm button; clearing a resume reads "Clear". */
+  confirmLabel?: string;
+  pendingLabel?: string;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -14,6 +17,8 @@ interface Props {
 export function DeleteDialog({
   title,
   heading = "Delete this item?",
+  confirmLabel = "Delete",
+  pendingLabel = "Deleting…",
   pending,
   onCancel,
   onConfirm,
@@ -45,7 +50,7 @@ export function DeleteDialog({
             disabled={pending}
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
           >
-            {pending ? "Deleting…" : "Delete"}
+            {pending ? pendingLabel : confirmLabel}
           </button>
         </div>
       </div>

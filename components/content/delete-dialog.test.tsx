@@ -44,4 +44,23 @@ describe("DeleteDialog", () => {
     fireEvent.click(button);
     expect(onConfirm).not.toHaveBeenCalled();
   });
+
+  it("takes its own confirm and pending labels", () => {
+    const onConfirm = vi.fn();
+    const props = {
+      title: "Visitors of the Spanish site get the English resume.",
+      heading: "Clear the Spanish resume?",
+      confirmLabel: "Clear",
+      pendingLabel: "Clearing…",
+      onCancel: vi.fn(),
+      onConfirm,
+    };
+    const { rerender } = render(<DeleteDialog {...props} pending={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+
+    rerender(<DeleteDialog {...props} pending />);
+    expect(screen.getByRole("button", { name: "Clearing…" }).hasAttribute("disabled")).toBe(true);
+  });
 });
