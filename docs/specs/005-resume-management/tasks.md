@@ -82,13 +82,13 @@
 
 ## Phase 5 — Documentation, verification and release
 
-- [ ] **T12 — README**
+- [x] **T12 — README**
   - **RF:** —
   - **Depends on:** T02, T05, T11
   - **Scope:** In `README.md`: mention the resume in the intro. Add a "Resume" section covering the page, the ordering rules, clearing with confirmation, the public link and the delete dialog. Add a Getting started note that the dev server's cookie is not `Secure` so Safari keeps the session, while production builds send `Secure`. Add "The panel v5.1 needs the api v6.1 (resume endpoints): release the api first."
   - **Done when:** `README.md` has the Resume section, the Safari note and the api v6.1 release line.
 
-- [ ] **T13 — Quality gate**
+- [x] **T13 — Quality gate**
   - **RF:** —
   - **Depends on:** T12
   - **Scope:** Run the `AGENTS.md` checks on the whole branch.
