@@ -19,10 +19,10 @@ export interface FilePage {
   total: number;
 }
 
-/** A content item whose fields contain a file's URL. */
+/** A content item whose fields contain a file's URL, or a resume keyed by its language. */
 export interface FileReference {
   collection: string;
-  id: number;
+  id: number | string;
   title: string;
   status?: "draft" | "published";
 }

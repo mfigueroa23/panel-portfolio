@@ -21,9 +21,36 @@ describe("session actions", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it("createSession stores the token in an httpOnly, Secure, SameSite=Strict cookie", async () => {
+    const token = makeToken({ sub: "owner", exp: nowSeconds + 3600 });
+    await createSession(token);
+    expect(cookieStore.set).toHaveBeenCalledWith("panel_session", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      path: "/",
+      maxAge: 3600,
+    });
+  });
+
+  it("createSession leaves out Secure on the dev server so Safari keeps it on http://localhost", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const token = makeToken({ sub: "owner", exp: nowSeconds + 3600 });
+    await createSession(token);
+    expect(cookieStore.set).toHaveBeenCalledWith("panel_session", token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "strict",
+      path: "/",
+      maxAge: 3600,
+    });
+  });
+
+  it("createSession keeps Secure in a production build", async () => {
+    vi.stubEnv("NODE_ENV", "production");
     const token = makeToken({ sub: "owner", exp: nowSeconds + 3600 });
     await createSession(token);
     expect(cookieStore.set).toHaveBeenCalledWith("panel_session", token, {
@@ -50,6 +77,12 @@ describe("session actions", () => {
   });
 
   it("deleteSession deletes the cookie", async () => {
+    await deleteSession();
+    expect(cookieStore.delete).toHaveBeenCalledWith("panel_session");
+  });
+
+  it("deleteSession deletes the cookie on the dev server too", async () => {
+    vi.stubEnv("NODE_ENV", "development");
     await deleteSession();
     expect(cookieStore.delete).toHaveBeenCalledWith("panel_session");
   });

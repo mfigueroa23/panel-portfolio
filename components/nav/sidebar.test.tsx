@@ -32,7 +32,13 @@ const EXPECTED_GROUPS = [
       ["Posts", "/posts"],
     ],
   ],
-  ["Media", [["Files", "/files"]]],
+  [
+    "Media",
+    [
+      ["Files", "/files"],
+      ["Resume", "/resume"],
+    ],
+  ],
 ] as const;
 
 describe("Sidebar", () => {
@@ -78,6 +84,13 @@ describe("Sidebar", () => {
     pathname = "/files";
     render(<Sidebar />);
     expect(screen.getByRole("link", { name: "Files" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("marks Resume as active on the Resume page, and Files not", () => {
+    pathname = "/resume";
+    render(<Sidebar />);
+    expect(screen.getByRole("link", { name: "Resume" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Files" }).hasAttribute("aria-current")).toBe(false);
   });
 
   it("logs out through the session", () => {

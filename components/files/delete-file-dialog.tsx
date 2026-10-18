@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { StatusBadge } from "@/components/content/status-badge";
 import { errorMessage } from "@/lib/api";
 import { deleteFile, fileReferences, type FileReference, type StoredFile } from "@/lib/files";
+import { LANG_LABELS, type ResumeLang } from "@/lib/resume";
 
 interface Props {
   file: StoredFile;
@@ -30,6 +32,18 @@ const COLLECTION_NAMES: Record<string, string> = {
 
 function collectionName(collection: string): string {
   return COLLECTION_NAMES[collection] ?? collection;
+}
+
+const RESUME = "resume";
+
+// A resume is keyed by its language, which reads better than the api's title
+// ("Resume · English", plan D8).
+function referenceLabel(reference: FileReference): string {
+  if (reference.collection === RESUME) {
+    const lang = LANG_LABELS[reference.id as ResumeLang] ?? String(reference.id);
+    return `Resume · ${lang}`;
+  }
+  return `${collectionName(reference.collection)} · ${reference.title}`;
 }
 
 // The references are shown before the owner can confirm, so a file still in
@@ -70,6 +84,8 @@ export function DeleteFileDialog({ file, token, onCancel, onDeleted, onUnauthori
   }
 
   const count = references?.length ?? 0;
+  // The api refuses to delete a current resume (409); say so before trying.
+  const isResume = references?.some((reference) => reference.collection === RESUME) ?? false;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -101,13 +117,20 @@ export function DeleteFileDialog({ file, token, onCancel, onDeleted, onUnauthori
                   className="flex min-w-0 items-center gap-2.5 rounded-lg bg-background px-3 py-2.5 text-sm text-foreground"
                 >
                   {reference.status && <StatusBadge status={reference.status} />}
-                  <span className="min-w-0 truncate">
-                    {collectionName(reference.collection)} · {reference.title}
-                  </span>
+                  <span className="min-w-0 truncate">{referenceLabel(reference)}</span>
                 </li>
               ))}
             </ul>
           </>
+        )}
+        {isResume && (
+          <p className="text-sm text-foreground">
+            This file is the current resume. Replace or clear it on the{" "}
+            <Link href="/resume" className="text-primary underline underline-offset-2">
+              Resume page
+            </Link>{" "}
+            before deleting it.
+          </p>
         )}
         {error && (
           <p
@@ -128,7 +151,7 @@ export function DeleteFileDialog({ file, token, onCancel, onDeleted, onUnauthori
           <button
             type="button"
             onClick={() => void confirm()}
-            disabled={references === null || pending}
+            disabled={references === null || pending || isResume}
             className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
           >
             {pending ? "Deleting…" : "Delete file"}

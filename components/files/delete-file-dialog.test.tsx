@@ -4,6 +4,7 @@ import type { StoredFile } from "@/lib/files";
 import { DeleteFileDialog } from "./delete-file-dialog";
 
 vi.mock("@/lib/config", () => ({ API_URL: "http://api.test", GOOGLE_CLIENT_ID: "" }));
+vi.mock("next/link", () => import("@/test/next-link-mock"));
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -24,6 +25,12 @@ const REFERENCES = [
   { collection: "posts", id: 3, title: "Serving uploads from Postgres", status: "draft" },
   { collection: "projects", id: 1, title: "Portfolio platform", status: "published" },
   { collection: "certifications", id: 2, title: "CKA" },
+];
+
+// The api adds one entry per language the file is the current resume of.
+const RESUME_REFERENCES = [
+  { collection: "resume", id: "en", title: "English resume" },
+  { collection: "resume", id: "es", title: "Spanish resume" },
 ];
 
 const onCancel = vi.fn();
@@ -147,5 +154,45 @@ describe("DeleteFileDialog", () => {
     const dialog = await renderDialog();
     expect(within(dialog).getByRole("alert").textContent).toBe("Internal server error.");
     expect(within(dialog).getByRole("button", { name: "Delete file" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("names resume references by their language", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, [...RESUME_REFERENCES, REFERENCES[2]]));
+    const dialog = await renderDialog();
+    const items = within(dialog).getAllByRole("listitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Resume · English",
+      "Resume · Spanish",
+      "Certification · CKA",
+    ]);
+  });
+
+  it("does not let a current resume be deleted and points to the Resume page", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, [RESUME_REFERENCES[0]]));
+    const dialog = await renderDialog();
+    expect(within(dialog).getByRole("button", { name: "Delete file" }).hasAttribute("disabled")).toBe(true);
+    expect(
+      within(dialog).getByText(/This file is the current resume\. Replace or clear it on the/),
+    ).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "Resume page" }).getAttribute("href")).toBe(
+      "/resume",
+    );
+  });
+
+  it("keeps Delete file enabled when no reference is a resume", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, REFERENCES));
+    const dialog = await renderDialog();
+    expect(within(dialog).getByRole("button", { name: "Delete file" }).hasAttribute("disabled")).toBe(false);
+    expect(within(dialog).queryByRole("link", { name: "Resume page" })).toBeNull();
+  });
+
+  it("shows the api's 409 and keeps the file when it became a resume meanwhile", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, []))
+      .mockResolvedValueOnce(jsonResponse(409, { error: "File is the current resume." }));
+    const dialog = await renderDialog();
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Delete file" })));
+    expect(within(dialog).getByRole("alert").textContent).toBe("File is the current resume.");
+    expect(onDeleted).not.toHaveBeenCalled();
   });
 });

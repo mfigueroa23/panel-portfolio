@@ -1,5 +1,5 @@
 # Portfolio Panel
-Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (social links, technologies, highlights, testimonials, contact info, projects, experience, certifications and blog posts), reviews the testimonials visitors submit, writes each text in English and Spanish, publishes projects and posts, writes their Markdown bodies with a live preview and manages uploaded files through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own: uploaded files are stored in the API database.
+Admin panel for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. The owner signs in with Google and lists, creates, edits and deletes the site content (social links, technologies, highlights, testimonials, contact info, projects, experience, certifications and blog posts), reviews the testimonials visitors submit, writes each text in English and Spanish, publishes projects and posts, writes their Markdown bodies with a live preview, manages uploaded files and chooses the current English and Spanish resume through the [`api`](../api)'s admin endpoints. The panel has no database and no secrets of its own: uploaded files are stored in the API database.
 
 Live at [panel.figueroa-sanchez.com](https://panel.figueroa-sanchez.com).
 
@@ -42,6 +42,16 @@ The panel v5 needs the api v6 (bilingual DTOs and admin lists): release the api 
 
 The panel v3 needs the api v4 (new endpoints and DTOs): release the api first.
 
+## Resume
+Spec 005 (`docs/specs/005-resume-management/`) adds a **Resume** page under Media. The resume is an ordinary PDF of the file library; the page only chooses which one is current for each language, and the api serves it at a stable public link (`GET /resume?lang=en|es`) that never changes when the PDF is replaced:
+- **One section per language**: English, then Spanish. Each shows the current PDF (name, size, assignment date, Open PDF), or that English has no public download yet / that Spanish visitors get the English resume, plus the public link with Copy link and Open link.
+- **Choose PDF / Replace** opens the file picker limited to PDFs, where a new PDF can also be uploaded. The previous PDF stays in Files.
+- **Clear** asks for confirmation first and says what happens to the public link; the PDF stays in Files.
+- **Ordering rules**: Spanish can only be chosen once English is assigned, and English can only be cleared after Spanish. If the api still refuses a change (409, e.g. another tab changed it), the message is shown and the page reloads the current resumes.
+- **Files**: the delete dialog lists a file's resume uses as "Resume · English" or "Resume · Spanish" and keeps Delete file disabled, with a link to the Resume page, while the file is a current resume.
+
+The panel v5.1 needs the api v6.1 (resume endpoints): release the api first.
+
 ## Getting started
 ```bash
 pnpm install
@@ -49,6 +59,8 @@ cp .env.example .env.local  # then set API_URL and GOOGLE_CLIENT_ID (see Environ
 pnpm dev                    # http://localhost:3000 (use -p <port> if the API already uses 3000)
 ```
 Signing in locally needs `http://localhost:3000` (or the port you use) as an authorized origin in the Google OAuth client and in the local `cors_origin` table (see [Deployment](#deployment)).
+
+On the dev server the session cookie is not `Secure`, because Safari refuses `Secure` cookies on `http://localhost` and would ask you to sign in again on every reload. Every production build (`pnpm build`, Vercel, the Docker image) sends it as `Secure`, so testing a local production build in Safari needs HTTPS.
 
 ## Environment
 Both values are inlined at build time by `next.config.ts`, so changing them needs a new build.
