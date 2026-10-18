@@ -14,7 +14,7 @@
 
 ## Phase 1 — Foundations
 
-- [ ] **T02 — Keep the session cookie in Safari on the dev server**
+- [x] **T02 — Keep the session cookie in Safari on the dev server**
   - **RF:** RF-26, RF-27, RF-29
   - **Depends on:** T01 (can run in parallel with T03 and T04)
   - **Scope:** In `app/actions/session.ts`, `createSession` sets `secure: process.env.NODE_ENV !== "development"`, with a comment on Safari and `http://localhost` (D9). `deleteSession` and `proxy.ts` stay as they are (D11). Add the cases to `app/actions/session.test.ts` with `vi.stubEnv`, and keep the existing Secure test as the `test` env case.
