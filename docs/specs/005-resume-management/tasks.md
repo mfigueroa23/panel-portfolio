@@ -34,7 +34,7 @@
 
 ## Phase 2 — File library integration
 
-- [ ] **T05 — Resume references in the file delete dialog**
+- [x] **T05 — Resume references in the file delete dialog**
   - **RF:** RF-23, RF-24, RF-25
   - **Depends on:** T03
   - **Scope:** `FileReference.id` in `lib/files.ts` widens to `number | string`. `components/files/delete-file-dialog.tsx` labels `collection: "resume"` references `Resume · English`/`Resume · Spanish` from `id` and `LANG_LABELS` (D8), disables "Delete file" while any reference is a resume, and explains it with a `Link` to `/resume`. A test pins that the existing failure branch shows the 409 message without calling `onDeleted`.
