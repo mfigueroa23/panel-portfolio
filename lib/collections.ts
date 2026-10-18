@@ -450,7 +450,13 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Pages",
     links: collectionLinks(["projects", "experience", "certifications", "posts"]),
   },
-  { label: "Media", links: [{ href: "/files", label: "Files" }] },
+  {
+    label: "Media",
+    links: [
+      { href: "/files", label: "Files" },
+      { href: "/resume", label: "Resume" },
+    ],
+  },
 ];
 
 export function isCollectionKey(value: string): value is CollectionKey {

@@ -421,7 +421,13 @@ describe("NAV_GROUPS", () => {
           { href: "/posts", label: "Posts" },
         ],
       },
-      { label: "Media", links: [{ href: "/files", label: "Files" }] },
+      {
+        label: "Media",
+        links: [
+          { href: "/files", label: "Files" },
+          { href: "/resume", label: "Resume" },
+        ],
+      },
     ]);
   });
 });

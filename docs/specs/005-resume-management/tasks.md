@@ -74,7 +74,7 @@
 
 ## Phase 4 — Integration
 
-- [ ] **T11 — Resume page and navigation link**
+- [x] **T11 — Resume page and navigation link**
   - **RF:** RF-01, RF-02
   - **Depends on:** T10
   - **Scope:** New `app/(admin)/resume/page.tsx`, a static segment like `app/(admin)/files/page.tsx`, with the metadata `Resume · Portfolio Panel`, a heading and `<ResumeManager />`. Add `{ href: "/resume", label: "Resume" }` after Files in the Media group of `NAV_GROUPS` (`lib/collections.ts`), and update `lib/collections.test.ts`, `components/nav/sidebar.test.tsx` and `components/nav/mobile-nav.test.tsx`.

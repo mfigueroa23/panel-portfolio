@@ -84,6 +84,7 @@ describe("MobileNav", () => {
       "/certifications",
       "/posts",
       "/files",
+      "/resume",
     ]);
     for (const label of ["Home sections", "Pages", "Media"]) {
       expect(within(nav).getByRole("group", { name: label })).toBeTruthy();
