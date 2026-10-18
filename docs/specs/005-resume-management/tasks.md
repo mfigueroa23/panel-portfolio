@@ -20,7 +20,7 @@
   - **Scope:** In `app/actions/session.ts`, `createSession` sets `secure: process.env.NODE_ENV !== "development"`, with a comment on Safari and `http://localhost` (D9). `deleteSession` and `proxy.ts` stay as they are (D11). Add the cases to `app/actions/session.test.ts` with `vi.stubEnv`, and keep the existing Secure test as the `test` env case.
   - **Done when:** `pnpm test app/actions/session.test.ts` passes with U-S1, U-S2 and U-S3.
 
-- [ ] **T03 — Resume api client**
+- [x] **T03 — Resume api client**
   - **RF:** RF-02, RF-06, RF-09, RF-15
   - **Depends on:** T01 (can run in parallel with T02 and T04)
   - **Scope:** New `lib/resume.ts` with `ResumeLang`, `RESUME_LANGS`, `LANG_LABELS`, the `ResumeAssignment`/`ResumeAssignments` types that mirror the api DTO (§5), `getAssignments`, `assignResume`, `clearResume` through `apiFetch`, and `publicResumeUrl(lang)` with an explicit `?lang=` (D1, D12). Tests in `lib/resume.test.ts`, mocking `fetch` as `lib/files.test.ts` does.
