@@ -42,31 +42,31 @@
 
 ## Phase 3 — Resume page
 
-- [ ] **T06 — Resume language section**
+- [x] **T06 — Resume language section**
   - **RF:** RF-03, RF-04, RF-05, RF-06, RF-13, RF-17, RF-18
   - **Depends on:** T03
   - **Scope:** New presentational `components/resume/resume-section.tsx`: heading, file name, `formatSize`, assignment date, "Open PDF" in a new tab, or the empty-state text per language. The public URL with "Copy link" (`navigator.clipboard` + `notify`, as `FileLibrary.copy`) and "Open". "Choose PDF"/"Replace" and "Clear" disabled with their hints by the ordering rules (D6), no "Clear" without a file, disabled while pending, and an error slot in `role="alert"`. Tests in `components/resume/resume-section.test.tsx`.
   - **Done when:** `pnpm test components/resume/resume-section.test.tsx` passes with U-C2, U-C3, U-C4 and U-C10.
 
-- [ ] **T07 — Load the assignment in `ResumeManager`**
+- [x] **T07 — Load the assignment in `ResumeManager`**
   - **RF:** RF-02, RF-07, RF-22
   - **Depends on:** T06
   - **Scope:** New client `components/resume/resume-manager.tsx`. It loads with `getAssignments` and the `useSession()` token, keyed by token like `FileLibrary` (D2), and renders English then Spanish. A load failure shows `errorMessage` in an alert with "Try again" and no sections. A 401 opens `ReauthDialog`, and `setToken` reloads (D3). Tests in `components/resume/resume-manager.test.tsx`.
   - **Done when:** `pnpm test components/resume/resume-manager.test.tsx` passes with U-C1, U-C5 and U-C16.
 
-- [ ] **T08 — Assign and replace from the picker**
+- [x] **T08 — Assign and replace from the picker**
   - **RF:** RF-08, RF-09, RF-10, RF-11, RF-12
   - **Depends on:** T07
   - **Scope:** "Choose PDF"/"Replace" opens `FilePickerDialog` with `accept={["pdf"]}` (D5). On pick or upload, the manager closes the picker, calls `assignResume` and shows the returned assignment with the notice "Resume updated." (D4). Closing the picker sends nothing. The tests mock `FilePickerDialog` with a stub that exposes pick, upload and close.
   - **Done when:** `pnpm test components/resume/resume-manager.test.tsx` passes with U-C6, U-C7, U-C8 and U-C9.
 
-- [ ] **T09 — Clear with confirmation**
+- [x] **T09 — Clear with confirmation**
   - **RF:** RF-14, RF-15, RF-16
   - **Depends on:** T04, T08
   - **Scope:** "Clear" opens `DeleteDialog` with the heading `Clear the <language> resume?`, the effect text for that language plus "The PDF stays in Files." as `title`, and the labels `Clear`/`Clearing…` (D7). Confirming calls `clearResume`, sets the language to `null` and notifies; cancelling sends nothing (D4).
   - **Done when:** `pnpm test components/resume/resume-manager.test.tsx` passes with U-C11 and U-C12.
 
-- [ ] **T10 — Pending, errors, 409 reload and 401 on changes**
+- [x] **T10 — Pending, errors, 409 reload and 401 on changes**
   - **RF:** RF-19, RF-20, RF-21, RF-22
   - **Depends on:** T09
   - **Scope:** In `ResumeManager`, track the pending language and disable only that section. A failed assign or clear shows the error in its section and keeps the shown state. A 409 also reloads with `getAssignments`. A 401 opens `ReauthDialog` without changing the state (D3).
