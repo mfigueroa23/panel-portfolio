@@ -14,13 +14,13 @@
 
 ## Phase 1 — Dependency upgrade
 
-- [ ] **T02 — Bump `next` and `eslint-config-next` to 16.4.2**
+- [x] **T02 — Bump `next` and `eslint-config-next` to 16.4.2**
   - **RF:** RF-01, RF-02, RF-03
   - **Depends on:** T01
   - **Scope:** Run `pnpm add next@16.4.2` and `pnpm add -D eslint-config-next@16.4.2` on top of the current `pnpm-lock.yaml`, without deleting it (D3). Both stay pinned exactly, with no `^` (D1, D2). `sharp` stays at 0.35.5.
   - **Done when:** C1 shows `16.4.2` for both packages with no `^` in `package.json`. C2 finds no `next` in 16.0.0–16.4.0 and no Next package left at `16.3.8`. `git diff --stat` touches only `package.json` and `pnpm-lock.yaml`, and the lockfile diff is about the size of `aff288a` (around 100 lines).
 
-- [ ] **T03 — Review the 16.4 deprecations and pass the quality gate**
+- [x] **T03 — Review the 16.4 deprecations and pass the quality gate**
   - **RF:** RF-05, RF-06, RF-07
   - **Depends on:** T02
   - **Scope:** Read the 16.4 notes in `node_modules/next/dist/docs/` (D6), looking at what touches `proxy.ts`, `cookies()`, Server Actions, `output: "standalone"` and ESLint rules. Fix only what `pnpm lint` or `pnpm build` reports inside `app/`, `components/`, `lib/` or `proxy.ts`. Keep `next-env.d.ts` if the build rewrites it. If a fix needs `next.config.ts`, the `Dockerfile` or `.github/`, stop and ask the owner. Tests stay as they are (D4).
