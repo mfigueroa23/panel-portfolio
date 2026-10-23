@@ -32,19 +32,20 @@
   - **RF:** RF-05, RF-06, RF-07
   - **Depends on:** T03 (can run in parallel with T05)
   - **Scope:** E1 against a local or production api.
+  - **Progress (2026-10-23):** Checked automatically on a local production build: `/login` answers 200 and `/files` without a cookie redirects to `/login` (307). Still pending: the Google sign-in and the cookie checks, which need the owner's account.
   - **Done when:** E1 passes. On `pnpm dev`: sign in with Google, reload an admin page and open one in a new tab without being asked to sign in, see the image previews in Files and in the file picker, and log out so that a reload goes to `/login`. On `pnpm build && pnpm start`, `panel_session` shows `HttpOnly`, `Secure` and `SameSite=Strict` in devtools.
 
-- [ ] **T05 — Check the Docker image**
+- [x] **T05 — Check the Docker image**
   - **RF:** RF-08
   - **Depends on:** T03 (can run in parallel with T04)
   - **Scope:** E2: run `docker build` and `docker run -p 3000:3000` with the commands in `README.md`. The `Dockerfile` doesn't change.
   - **Done when:** `docker ps` shows the container as `healthy`, and `curl -o /dev/null -w "%{http_code}" http://localhost:3000/login` prints `200`.
 
-- [ ] **T06 — Commit the upgrade**
+- [x] **T06 — Commit the upgrade**
   - **RF:** RF-01 – RF-03
   - **Depends on:** T04, T05
   - **Scope:** Commit `fix(deps): Bump next and eslint-config-next to 16.4.2` (D7), with any fixes from T03. The body names alerts #8 and #9 and the advisories GHSA-2464-fhr4-w9xw and GHSA-p3m5-59mp-jv5r (CVE-2026-94482).
-  - **Done when:** `git log -1 --format=%s` prints that subject, and `git status` is clean.
+  - **Done when:** `git log -1 --format=%s` prints that subject, and `git status` is clean. (Committed as `31d907b` at the end of Phase 1, as the owner asked for one commit per phase.)
 
 ## Phase 3 — Documentation and release
 
