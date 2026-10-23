@@ -49,13 +49,13 @@
 
 ## Phase 3 — Documentation and release
 
-- [ ] **T07 — Review the README**
+- [x] **T07 — Review the README**
   - **RF:** —
   - **Depends on:** T03 (can run in parallel with T04–T06)
   - **Scope:** Following `AGENTS.md`, check whether behaviour, environment variables or deployment changed. The plan expects no change. Update `README.md` only if T03 found a deprecation that changes how the panel is run.
   - **Done when:** `git diff main -- README.md` is empty, or it shows only the change from the T03 finding.
 
-- [ ] **T08 — Bump the version to 5.1.1**
+- [x] **T08 — Bump the version to 5.1.1**
   - **RF:** —
   - **Depends on:** T06, T07
   - **Scope:** Set `version` in `package.json` to `5.1.1` (fix → patch) and commit it as `chore(release): Bump version to v5.1.1` (D7).
