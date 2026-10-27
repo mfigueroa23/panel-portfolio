@@ -39,7 +39,7 @@
 
 ## Phase 1 — Scripts
 
-- [ ] **T04 — SCA gate script and exceptions file**
+- [x] **T04 — SCA gate script and exceptions file**
   - **RF:** RF-29, RF-30, RF-31, RF-34, RF-35, RF-42, RF-43, RF-44
   - **Depends on:** T01, T02
   - **Scope:**
@@ -52,7 +52,7 @@
     - `pnpm lint` is clean.
     - `diff` against `web`'s `scripts/sca-gate.mjs` shows only the header comment, plus style fixes if any.
 
-- [ ] **T05 — Dependabot bump script**
+- [x] **T05 — Dependabot bump script**
   - **RF:** RF-18, RF-19, RF-21, RF-22, RF-23, RF-24, RF-25
   - **Depends on:** T01, T02 (can run in parallel with T04)
   - **Scope:**
