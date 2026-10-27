@@ -13,7 +13,7 @@
   - **Scope:** The owner approved the spec and the plan on 2026-10-27, and `Status: Approved` is already set in both. Commit `docs/specs/010-devsecops/` on `feat/spec-010` as `docs(devsecops): Add the Spec 010 DevSecOps spec, plan and tasks`.
   - **Done when:** `grep -n "Status" docs/specs/010-devsecops/{spec,plan}.md` shows `Approved` in both, and `git log -1 --format=%s` prints that subject.
 
-- [ ] **T02 — Answer the plan's open questions**
+- [x] **T02 — Answer the plan's open questions**
   - **RF:** —
   - **Depends on:** — (can run in parallel with T01, T03)
   - **Scope:** The owner answers three questions raised in the plan report:
