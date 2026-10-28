@@ -1,6 +1,6 @@
 {
   "name": "panel",
-  "version": "5.2.1",
+  "version": "5.2.2",
   "author": "Marco Antonio Figueroa Sanchez <marco@figueroa-sanchez.com>",
   "license": "MIT",
   "private": true,
@@ -23,7 +23,7 @@
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
-    "@types/node": "^20",
+    "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.2",
