@@ -179,7 +179,7 @@
 
 ## Phase 5 — Verification and release
 
-- [ ] **T15 — Quality gate and workflow review**
+- [x] **T15 — Quality gate and workflow review**
   - **RF:** RF-26, RF-45, RF-47, RF-48
   - **Depends on:** T04–T14
   - **Scope:** The closing checklist of `AGENTS.md`, plus E14 over every workflow.
@@ -188,8 +188,9 @@
     - actionlint is clean on `.github/workflows/`.
     - E14 holds: every workflow has `permissions`, every third-party `uses:` is pinned by SHA with a version comment, and no job reachable from a Dependabot `pull_request` run references `secrets.`.
     - `test.yaml` is unchanged except for the comments.
+  - **Result (2026-10-27):** `pnpm lint` clean, `pnpm test` 520 tests in 38 files (26 of them the script tests), `pnpm build` passes, actionlint 1.7.7 clean. E14: all five workflows declare `permissions` and pin every action by SHA with its version comment. The only `secrets.` in a workflow with a `pull_request` trigger is `BUMP_APP_PRIVATE_KEY` in the `bump` job, which never runs on `pull_request`.
 
-- [ ] **T16 — Bump the version to 5.2.0**
+- [x] **T16 — Bump the version to 5.2.0**
   - **RF:** —
   - **Depends on:** T15
   - **Scope:** Set `version` in `package.json` to `5.2.0` in its own commit, `chore(release): Bump version to v5.2.0`.
