@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "approve-builds": "pnpm approve-builds"
   },
   "dependencies": {
     "mermaid": "^12.1.0",

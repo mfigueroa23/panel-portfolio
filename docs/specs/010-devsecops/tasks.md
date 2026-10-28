@@ -155,7 +155,7 @@
 
 ## Phase 4 — Build scripts and documentation
 
-- [ ] **T13 — Build-script approval command**
+- [x] **T13 — Build-script approval command**
   - **RF:** RF-49, RF-50, RF-51
   - **Depends on:** T08 (it touches `pnpm-workspace.yaml` too)
   - **Scope:**
@@ -167,7 +167,7 @@
     - `pnpm run approve-builds` reports nothing pending.
     - `grep -n approve-builds package.json AGENTS.md pnpm-workspace.yaml` finds all three.
 
-- [ ] **T14 — README**
+- [x] **T14 — README**
   - **RF:** RF-42, RF-49
   - **Depends on:** T06, T07, T09, T11, T12, T13
   - **Scope:** In `README.md`:

@@ -80,6 +80,7 @@ The session lives in memory and in the httpOnly cookie `panel_session`, which ex
 | `pnpm start` | Run the production build |
 | `pnpm test` | Unit and component tests (`pnpm test <path>` runs one file) |
 | `pnpm lint` | Lint with ESLint |
+| `pnpm run approve-builds` | Approve or deny the build scripts of a new dependency in `pnpm-workspace.yaml` (installs, also in CI, fail until it is approved) |
 
 ## Deployment
 Vercel serves production from `main`. A Docker image on the Kubernetes cluster, behind the Cloudflare tunnel, is the fallback. Switching between them is a manual DNS change.
@@ -120,7 +121,7 @@ If Vercel is down, switch the `panel` DNS record in Cloudflare from Vercel to th
 - A `Service` for port 3000 and the ingress (Traefik) host `panel.figueroa-sanchez.com`.
 - The Cloudflare tunnel route for that host (used only while DNS points to the tunnel).
 
-The Docker Hub repository `portfolio-panel`, the GitHub variables `DOCKERHUB_USERNAME` and `GOOGLE_CLIENT_ID`, and the secrets `DOCKERHUB_TOKEN`, `API_URL`, `LOCAL_NETWORK` and `KUBE_CONFIG` must exist too.
+The Docker Hub repository `portfolio-panel`, the GitHub variables `DOCKERHUB_USERNAME`, `GOOGLE_CLIENT_ID` and `BUMP_APP_ID`, and the Actions secrets `DOCKERHUB_TOKEN`, `API_URL`, `LOCAL_NETWORK`, `KUBE_CONFIG` and `BUMP_APP_PRIVATE_KEY` must exist too. `BUMP_APP_*` belong to the `portfolio-version-bump` GitHub App shared with the web, installed on this repository; they are Actions secrets, never Dependabot secrets.
 
 To build and run the image locally:
 ```bash
@@ -130,8 +131,19 @@ docker run -p 3000:3000 panel
 
 ## CI/CD
 - **Panel Tests** (`.github/workflows/test.yaml`): lint, tests and build on every push and on pull requests to `main`.
-- **Panel Release** (`.github/workflows/release.yaml`): on push to `main`, verifies the build, builds a multi-platform Docker image (`linux/amd64`, `linux/arm64`), pushes it to Docker Hub tagged `latest`, the `package.json` version and `sha-<commit>`, and rolls it out to `deployment/panel`, waiting for the rollout.
+- **Panel Release** (`.github/workflows/release.yaml`): on push to `main`, verifies the build, builds a multi-platform Docker image (`linux/amd64`, `linux/arm64`) into a registry local to the job and scans both platforms with Grype. A critical or high finding with a fixed version stops the release before anything reaches Docker Hub. Otherwise it copies the scanned image to Docker Hub tagged `latest`, the `package.json` version and `sha-<commit>`, uploads one SPDX SBOM per platform as the artifact `portfolio-panel-<version>-sbom`, and rolls the scanned digest out to `deployment/panel`, waiting for the rollout.
+- **Panel CodeQL** (`.github/workflows/codeql.yaml`): CodeQL `security-extended` for `actions` and `javascript-typescript` on pull requests to `main`, on push to `main` and daily. The `main` ruleset blocks a PR that introduces a high or critical alert. It replaces GitHub's default setup, which stays disabled.
+- **Panel SCA** (`.github/workflows/sca.yaml`): the `Lockfile Scan` runs Grype on `pnpm-lock.yaml` on pull requests to `main` and daily, and fails on a critical or high finding with a fixed version. Findings go to the job summary and to code scanning.
+- **Dependabot** (`.github/dependabot.yml`): weekly npm, GitHub Actions and Docker base-image updates, with minor and patch grouped per ecosystem and each major in its own PR; security updates open at once. Nothing merges automatically.
+- **Panel Version Bump** (`.github/workflows/dependabot-bump.yaml`): adds one signed `chore(release): Bump version to vX.Y.Z` commit (`main` + 1 patch) to every Dependabot PR, and redoes it when `main`'s version changes.
 - **Vercel**: deploys `main` to production through its Git integration.
+
+### Scan exceptions
+A finding that cannot be fixed yet can be accepted for a while in `.github/sca-exceptions.json`, shared by the lockfile and image scans:
+```json
+[{ "id": "GHSA-xxxx-xxxx-xxxx", "reason": "Why it is accepted and what removes it", "expires": "YYYY-MM-DD" }]
+```
+An entry covers its advisory (and the related CVE) through its expiry day (UTC) and is listed as excepted. An expired entry stops covering it, and an entry without `id`, `reason` or a valid `expires` fails the check.
 
 ## Contributing
 Read [`AGENTS.md`](AGENTS.md) and [`docs/constitution.md`](docs/constitution.md) first. New features start from a spec in `docs/specs/NNN-*/spec.md` (cross-repo specs in `../docs/specs/`), and commits follow [Conventional Commits](https://www.conventionalcommits.org).
