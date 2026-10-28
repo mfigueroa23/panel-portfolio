@@ -113,7 +113,7 @@
 
 ## Phase 3 — Image and release
 
-- [ ] **T10 — Pin and harden the Dockerfile**
+- [x] **T10 — Pin and harden the Dockerfile**
   - **RF:** RF-38, RF-39, RF-40, RF-41
   - **Depends on:** T01, T02 (can run in parallel with T04–T09)
   - **Scope:**
@@ -126,8 +126,9 @@
     - `apk list -u` is empty.
     - The container started with no input reaches `healthy` and `/login` answers 200.
     - Grype locally on the image plus `sca-gate.mjs` exit 0.
+  - **Result (2026-10-27):** `node:26-alpine` still resolves to `web`'s digest (`40cd011b…`). Before the change, E15 failed: npm was present and the image had 4 blocking findings (`brace-expansion` 5.0.9 and `undici` 6.28.0 inside npm). After it, E15 passes on `linux/arm64` and `linux/amd64`: no npm/npx/yarn/corepack, no Alpine upgrades pending, `healthy` and `/login` 200, and 0 blocking findings (3 medium busybox findings without a fix are only reported). No other bundled tool needed removing.
 
-- [ ] **T11 — Scan, gate and SBOMs in the release**
+- [x] **T11 — Scan, gate and SBOMs in the release**
   - **RF:** RF-16, RF-33, RF-34, RF-35, RF-36, RF-37, RF-46, RF-47, RF-48
   - **Depends on:** T04, T10
   - **Scope:** Change `.github/workflows/release.yaml` as the plan's table says:
@@ -142,8 +143,9 @@
     - E11: Grype locally against an old `node:26-alpine` with known fixed highs, plus `sca-gate.mjs`, exits 1.
     - `grep -n "Check Findings\|imagetools create\|build-push-action" .github/workflows/release.yaml` shows the build, then the gate, then the only Docker Hub push, in that order.
     - Every `uses:` line in both files has a version comment.
+  - **Result (2026-10-27):** actionlint 1.7.7 is clean. E11: the unhardened `node:26-alpine` (amd64) gives 4 blocking findings and the gate exits 1. Build (line 90), gate (124) and `imagetools create` (152) come in that order. The panel's own pins resolve to `pnpm/setup` v3.0.0 and `docker/login-action` v4.6.0.
 
-- [ ] **T12 — Dependabot configuration**
+- [x] **T12 — Dependabot configuration**
   - **RF:** RF-10, RF-11, RF-12, RF-13, RF-14, RF-15, RF-16, RF-17
   - **Depends on:** T10, T11
   - **Scope:** Add `.github/dependabot.yml`, identical to `web`'s in schedule, groups, prefixes and labels (D12), with a header comment citing Spec 010 and `dependabot-bump.yaml`. No auto-merge.

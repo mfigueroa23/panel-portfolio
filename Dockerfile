@@ -1,8 +1,9 @@
 # Stage 1: build the standalone server. It runs per target platform (no
 # --platform=$BUILDPLATFORM) because the traced output includes native
 # binaries such as sharp. API_URL and GOOGLE_CLIENT_ID are inlined at build
-# time; an empty API_URL (unset CI secret) falls back to production.
-FROM node:26-alpine AS build
+# time; an empty API_URL (unset CI secret) falls back to production. Base images
+# are pinned by digest so Dependabot can update them (Spec 010, RF-38).
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS build
 RUN npm install -g pnpm@12.6.0
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -14,7 +15,11 @@ ENV NEXT_TELEMETRY_DISABLED=1 API_URL=$API_URL GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_I
 RUN pnpm build
 
 # Stage 2: unprivileged runtime with only the traced files.
-FROM node:26-alpine
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797
+# Alpine fixes published after the base image, and no npm/npx: the server only runs `node`,
+# and the bundled npm only adds packages to scan and patch (Spec 010, RF-39, RF-40, plan D11).
+RUN apk upgrade --no-cache \
+ && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
 COPY --from=build --chown=root:root /app/.next/standalone ./
