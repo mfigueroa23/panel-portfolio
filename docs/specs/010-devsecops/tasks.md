@@ -85,7 +85,7 @@
     - Grype locally on `pnpm-lock.yaml` followed by `node scripts/sca-gate.mjs --title Lockfile --report grype.json` prints the summary table. Its blocking findings, if any, are listed for T08.
   - **Result (2026-10-27):** Grype v0.120.1 (DB built 2026-10-27) found 14 findings, 5 of them blocking: `dompurify` 3.4.16 (GHSA-cg2g-xh64-v4q7 critical, GHSA-mrv2-3pqr-j5jr high; via `mermaid`), `vite` 8.3.2 (GHSA-587h-7wmj-h5pm; via Vitest and the Vite plugins), `zod` 4.6.5 (GHSA-mrhx-c7xc-m3w5; via `eslint-plugin-react-hooks`) and `undici` 8.11.2 (GHSA-xjj6-f33q-929c; via `jsdom`). All are transitive.
 
-- [ ] **T08 — Clear the blocking lockfile findings**
+- [x] **T08 — Clear the blocking lockfile findings**
   - **RF:** RF-32
   - **Depends on:** T07
   - **Scope:** D14.
@@ -98,6 +98,7 @@
     - Grype locally plus `sca-gate.mjs` exit 0 on the updated lockfile.
     - `pnpm test` and `pnpm build` pass.
     - `git diff main -- package.json` shows no major version change and no new package.
+  - **Result (2026-10-27):** `pnpm update vite zod undici dompurify` moved them to 8.3.5, 4.6.7, 8.12.3 and 3.4.17 within their parents' ranges; only `pnpm-lock.yaml` changed (vite also brings rolldown 1.2.15 and its own postcss 8.5.32). No override was needed. The rescan reports 0 blocking findings (1 low in `katex`, reported), and 520 tests and the build pass.
 
 - [x] **T09 — Dependabot version bump workflow**
   - **RF:** RF-18, RF-20, RF-21, RF-23, RF-24, RF-25, RF-26, RF-47, RF-48
