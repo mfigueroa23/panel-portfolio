@@ -45,23 +45,26 @@
 
 ## Phase 2 — Documentation, verification and release
 
-- [ ] **T06 — README: image without a shell**
+- [x] **T06 — README: image without a shell**
   - **RF:** RF-02, RF-04
   - **Depends on:** — (can run in parallel with T03–T05)
   - **Scope:** `README.md`, **5. Cluster objects**: the image has no shell or BusyBox; the health check runs `node` against `/login`; probes must be `httpGet` or `tcpSocket`, never `exec` with a shell; debugging with `kubectl debug -it <pod> --image=busybox --target=panel -n portfolio` (D6).
   - **Done when:** `README.md` section 5 states those four points and the local `docker build`/`docker run` example is unchanged.
+  - **Result (2026-10-28):** a check over section 5 failed on the four points before the edit and passes after it; the `docker build`/`docker run` example is unchanged.
 
-- [ ] **T07 — Quality gate**
+- [x] **T07 — Quality gate**
   - **RF:** —
   - **Depends on:** T03, T06
   - **Scope:** The closing checklist of `AGENTS.md`.
   - **Done when:** `pnpm lint`, `pnpm test` and `pnpm build` finish with 0 errors (part of E1).
+  - **Result (2026-10-28):** `pnpm lint` exit 0, `pnpm test` 520 tests in 38 files pass, `pnpm build` exit 0.
 
-- [ ] **T08 — Version 5.2.4**
+- [x] **T08 — Version 5.2.4**
   - **RF:** —
   - **Depends on:** T04, T05, T07
   - **Scope:** `version` in `package.json` from 5.2.3 to 5.2.4 (fix → patch).
   - **Done when:** the last commit of the branch is `chore(release): Bump version to v5.2.4` and changes only `version`.
+  - **Result (2026-10-28):** ticked with T06 and T07; the bump is the commit that follows.
 
 - [ ] **T09 — Pull request and merge**
   - **RF:** RF-10
