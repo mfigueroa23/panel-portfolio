@@ -22,23 +22,26 @@
 
 ## Phase 1 — Runtime image
 
-- [ ] **T03 — Remove BusyBox, clear the entrypoint, node health check**
+- [x] **T03 — Remove BusyBox, clear the entrypoint, node health check**
   - **RF:** RF-01, RF-02, RF-03, RF-04, RF-05, RF-06, RF-07
   - **Depends on:** T01
   - **Scope:** `Dockerfile`, runtime stage only. The single `RUN` keeps `apk upgrade --no-cache` and the npm/npx removal, also deletes `/usr/local/bin/docker-entrypoint.sh`, and ends with `apk del --no-cache busybox busybox-binsh ssl_client` (D1, D2). Add `ENTRYPOINT []` before the unchanged `CMD ["node", "server.js"]` (D3). Replace the `HEALTHCHECK` with the exec-form `node -e` fetch of `http://127.0.0.1:3000/login`, same interval and timeout, healthy only on a 2xx (D4, D5). Comments cite Spec 011 and D1–D5. Build stage, digests, `ENV`, `USER`, `EXPOSE` untouched.
   - **Done when:** E1 passes (the `linux/amd64,linux/arm64` build finishes) and E2 passes on both platforms (`docker run --rm --entrypoint sh` fails; `/bin/sh`, `/bin/busybox`, npm, npx and `docker-entrypoint.sh` are absent; `/lib/apk/db/installed` lists no `busybox`, `busybox-binsh` or `ssl_client`).
+  - **Result (2026-10-28):** checks run first against the 5.2.3 runtime (red: `sh`, `/bin/busybox`, `docker-entrypoint.sh` and the three packages present), then green on the new image for both platforms. A plain `apk del` refused because `alpine-baselayout` requires `/bin/sh`; resolved by plan D8 (`alpine-baselayout-data` kept in the world, `alpine-baselayout` removed). The build purges exactly `alpine-baselayout`, `busybox-binsh`, `ssl_client` and `busybox` (15 packages left).
 
-- [ ] **T04 — Container starts and reports its health**
+- [x] **T04 — Container starts and reports its health**
   - **RF:** RF-02, RF-04, RF-05, RF-06, RF-07
   - **Depends on:** T03 (can run in parallel with T05)
   - **Scope:** Run the T03 image as the plan describes, with no further input and then with `-e PORT=3001`; smoke test sign-in and one edit against the production API if a local client ID is at hand.
   - **Done when:** E3 passes (`/login` returns 200, health `healthy`, `Entrypoint` empty, `Cmd` `[node server.js]`, `User` `node`), E4 passes (`unhealthy` after three intervals) and E5 passes or is noted in the PR as skipped with the reason.
+  - **Result (2026-10-28):** E3 and E4 pass on linux/arm64 (the cluster node's architecture) and linux/amd64: `Entrypoint` null, `Cmd` `["node","server.js"]`, `User` `node`, `healthy` and `/login` 200; `unhealthy` with `PORT=3001`. E5 skipped: it needs the owner's interactive Google sign-in and an image built with the production client ID; it is left for the owner on the PR.
 
-- [ ] **T05 — Local image scan**
+- [x] **T05 — Local image scan**
   - **RF:** RF-01, RF-08
   - **Depends on:** T03 (can run in parallel with T04)
   - **Scope:** Grype on the T03 image for `linux/amd64` and `linux/arm64`, compared with the 5.2.3 findings in code scanning.
   - **Done when:** E6 passes: no CVE-2025-60876 on either platform and no critical or high finding that 5.2.3 did not have.
+  - **Result (2026-10-28):** Grype v0.120.1 (database built 2026-10-28) on `docker save` archives: 0 matches on linux/amd64 and linux/arm64, against 3 on the 5.2.3 runtime (CVE-2025-60876 in `busybox`, `busybox-binsh`, `ssl_client`).
 
 ## Phase 2 — Documentation, verification and release
 

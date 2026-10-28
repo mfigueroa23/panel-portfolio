@@ -11,10 +11,10 @@ The plan changes only the runtime stage of the `Dockerfile`, `README.md` and `ve
 ### Changed: `Dockerfile` (runtime stage only)
 | File | Change | RF |
 |---|---|---|
-| `Dockerfile` | The existing `RUN apk upgrade --no-cache && rm -rf …npm…npx` (Spec 010, D11) also deletes `/usr/local/bin/docker-entrypoint.sh` and ends with `apk del --no-cache busybox busybox-binsh ssl_client` as its **last** command (D1, D2). It stays the stage's only `RUN`. | RF-01–RF-03, RF-08 |
+| `Dockerfile` | The existing `RUN apk upgrade --no-cache && rm -rf …npm…npx` (Spec 010, D11) also deletes `/usr/local/bin/docker-entrypoint.sh`, adds the already installed `alpine-baselayout-data` to the apk world and ends with `apk del --no-cache alpine-baselayout busybox busybox-binsh ssl_client` as its **last** command (D1, D2, D8). It stays the stage's only `RUN`. | RF-01–RF-03, RF-08 |
 | `Dockerfile` | `ENTRYPOINT []` before `CMD`, so the inherited `docker-entrypoint.sh` (a `#!/bin/sh` script) no longer wraps the start command; `CMD ["node", "server.js"]`, `USER node`, `EXPOSE 3000` and `ENV` are unchanged (D3). | RF-02, RF-07 |
 | `Dockerfile` | `HEALTHCHECK` in exec form: `CMD ["node", "-e", "<fetch of http://127.0.0.1:3000/login; exit 0 on a 2xx, 1 on any other status or error>"]`, same `--interval=30s --timeout=3s` (D4, D5). | RF-04–RF-06 |
-| `Dockerfile` | The stage comments cite Spec 011 and the decisions (D1–D5), as the Spec 010 comments do. | — |
+| `Dockerfile` | The stage comments cite Spec 011 and the decisions (D1–D5, D8), as the Spec 010 comments do. | — |
 
 ### Infrastructure
 | File | Change |
@@ -32,11 +32,12 @@ The plan changes only the runtime stage of the `Dockerfile`, `README.md` and `ve
 | D5 | Same URL (`http://127.0.0.1:3000/login`), interval and timeout as today; only a 2xx after redirects counts as healthy. | Probe `/` or a new health route. | `wget -q` behaved the same way (follows redirects, fails on non-2xx), so health semantics do not change (RF-04, RF-05); `/login` is outside the `proxy.ts` matcher and answers without a session. A new route is out of scope. |
 | D6 | Debug with an ephemeral container (`kubectl debug --target=panel`), documented in the README. | Keep a debug image tag with a shell. | The owner turned down any shell in the image (spec Decisions); an ephemeral container shares the pod's process namespace without changing what is published. |
 | D7 | No change to `release.yaml` or the gate: the next release's Grype scan closes alerts #6–#11 by no longer reporting them. | Dismiss the alerts or add an exception now. | Code scanning marks an alert fixed when a later upload of the same category (`sca-image-panel-amd64`/`-arm64`) no longer contains it (RF-09, RF-10); both alternatives were turned down in the spec. |
+| D8 | Added during T03: `alpine-baselayout-data` goes into the apk world and `alpine-baselayout` is removed together with BusyBox. | `apk del -r` on the BusyBox packages, or `--force-broken-world`. | In Alpine 3.24 `alpine-baselayout` requires `busybox-binsh` (`/bin/sh`), so a plain `apk del` refuses. `-r` also purges `alpine-baselayout-data` as an orphan, which deletes `/etc/passwd` and breaks `USER node`; `--force-broken-world` leaves an apk database that declares a missing dependency. `alpine-baselayout` itself holds only `motd`, `profile.d`, crontabs, `modprobe.d` and `sysctl.d` defaults, none used by the server (RF-07). |
 
 ## RF coverage
 | RF | Where | Tests |
 |---|---|---|
-| RF-01 | `Dockerfile` `RUN … apk del` (D1, D2) | E2 |
+| RF-01 | `Dockerfile` `RUN … apk del` (D1, D2, D8) | E2 |
 | RF-02 | `Dockerfile` `apk del` + `ENTRYPOINT []` (D2, D3) | E2, E3 |
 | RF-03 | `Dockerfile` (digests, `apk upgrade`, npm/npx removal unchanged) | E1, E2 |
 | RF-04, RF-06 | `Dockerfile` `HEALTHCHECK` exec form (D4, D5) | E3 |
@@ -46,7 +47,7 @@ The plan changes only the runtime stage of the `Dockerfile`, `README.md` and `ve
 | RF-09, RF-10 | No change to `release.yaml` (D7) | E8 |
 
 ## Test strategy
-There is no unit test: no application or script code changes, so `pnpm test` keeps passing as it is (constitution §4 covers behaviour changes in code). The checks run against the built image; they need Docker Desktop running locally (it is not running today) and Grype installed locally (`brew install grype`) or run as a container.
+There is no unit test: no application or script code changes, so `pnpm test` keeps passing as it is (constitution §4 covers behaviour changes in code). The checks run against the built image; they need Docker Desktop running locally and Grype installed locally (`brew install grype`) or run as a container (T01 chose the `anchore/grype:v0.120.1` container).
 
 - **E1** — `docker buildx build --platform linux/amd64,linux/arm64` with the same build args as `release.yaml` finishes without errors; `pnpm lint`, `pnpm test` and `pnpm build` pass.
 - **E2** — On each platform: `docker run --rm --entrypoint sh panel` fails (no such file); `docker run --rm --entrypoint node panel -e "…"` confirms that `/bin/sh`, `/bin/busybox`, `/usr/local/bin/npm`, `/usr/local/bin/npx` and `/usr/local/bin/docker-entrypoint.sh` do not exist and that `/lib/apk/db/installed` lists no `busybox`, `busybox-binsh` or `ssl_client`.
@@ -73,7 +74,7 @@ Not covered automatically: E3–E8 are manual; nothing in CI fails if BusyBox co
 4. Follow-up: a spec for `web` and `api`, reusing D1–D5.
 
 ## Risks
-- **`apk del` refuses because another installed package depends on BusyBox:** the build fails at step 1, before anything is published. Mitigation: E1 shows it locally; the packages the base image adds (`libstdc++`, `libgcc`) do not depend on it. If one does, stop and bring the owner the alternative of D1.
+- **`apk del` refuses because another installed package depends on BusyBox:** the build fails at step 1, before anything is published. Happened in T03 (`alpine-baselayout` requires `/bin/sh`) and is resolved by D8; a new reverse dependency in a future digest makes E1 fail the same way.
 - **BusyBox applet symlinks left dangling** (`/bin/ls` → `/bin/busybox`): they are not packages, are not scanned and execute nothing. Accepted; E2 checks that no shell answers.
 - **The pod fails to start or turns unready in the cluster** because of an `exec` probe or a `command` that calls a shell: the rollout fails and `rollout status` reports it, while the old ReplicaSet keeps serving. Mitigation: Release step 1.
 - **A future base-image digest brings BusyBox back or adds a dependency on it:** the build fails or the scan reports the CVE again; accepted by the spec (no guard).
