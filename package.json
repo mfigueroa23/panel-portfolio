@@ -14,10 +14,10 @@
     "approve-builds": "pnpm approve-builds"
   },
   "dependencies": {
-    "mermaid": "^12.1.0",
-    "next": "16.4.2",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "mermaid": "^12.2.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -26,13 +26,13 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-react": "^6.1.2",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
-    "jsdom": "^30.1.1",
+    "eslint-config-next": "16.4.3",
+    "jsdom": "^30.1.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   }
 }
