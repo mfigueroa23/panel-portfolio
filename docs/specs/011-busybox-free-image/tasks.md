@@ -6,17 +6,19 @@
 
 ## Phase 0 — Gate
 
-- [ ] **T01 — Local image tooling**
+- [x] **T01 — Local image tooling**
   - **RF:** —
   - **Depends on:** — (can run in parallel with T02)
   - **Scope:** Start Docker Desktop and make Grype available, either installed (`brew install grype`, owner approval) or run as the `anchore/grype` container. Needed by E1–E4 and E6 (plan, Test strategy).
   - **Done when:** `docker version` prints a `Server` section, and `grype version` (or `docker run --rm anchore/grype version`) prints a version.
+  - **Result (2026-10-28):** Docker Desktop server 29.9.2 (linux/arm64, containerd image store); Grype runs as the `anchore/grype:v0.120.1` container, the version `release.yaml` uses, so nothing is installed on the host.
 
-- [ ] **T02 — Cluster probes need no shell (owner)**
+- [x] **T02 — Cluster probes need no shell (owner)**
   - **RF:** RF-07
   - **Depends on:** — (can run in parallel with T01; blocks only T09)
   - **Scope:** The owner runs `kubectl get deployment panel -n portfolio -o yaml` and checks that no liveness/readiness/startup probe is `exec` through `sh` or `wget` and that no `command`/`args` calls a shell (plan, Release step 1). If one does, switch it to `httpGet` on `/login`, port 3000, before merging.
   - **Done when:** the owner confirms in the PR that the deployment's probes are `httpGet`/`tcpSocket` (or absent) and no `command` calls a shell.
+  - **Result (2026-10-28):** read with the owner's `home-server-01` context: liveness and readiness are `httpGet` on `/login`, port 3000; no startup probe; `command` and `args` are unset; the container already runs with `readOnlyRootFilesystem` and all capabilities dropped. The PR repeats this for the owner's confirmation.
 
 ## Phase 1 — Runtime image
 
