@@ -64,7 +64,7 @@
 
 ## Phase 2 — Analysis workflows
 
-- [ ] **T06 — CodeQL advanced setup**
+- [x] **T06 — CodeQL advanced setup**
   - **RF:** RF-01, RF-02, RF-03, RF-04, RF-05, RF-08, RF-47
   - **Depends on:** T01
   - **Scope:**
@@ -76,13 +76,14 @@
     - The file has `permissions` at the workflow and job level and no `secrets.` reference.
     - The config lists the three ignored paths.
 
-- [ ] **T07 — Lockfile SCA workflow**
+- [x] **T07 — Lockfile SCA workflow**
   - **RF:** RF-27, RF-28, RF-30, RF-31, RF-47
   - **Depends on:** T04
   - **Scope:** Add `.github/workflows/sca.yaml` (`Panel SCA`, job `Lockfile Scan`) as in the plan: no install (D4), Grype v0.120.1 with the DB cached, `sca-gate.mjs --title Lockfile`, then `upload-sarif` with `category: sca-lockfile`, skipped for forks.
   - **Done when:**
     - actionlint is clean.
     - Grype locally on `pnpm-lock.yaml` followed by `node scripts/sca-gate.mjs --title Lockfile --report grype.json` prints the summary table. Its blocking findings, if any, are listed for T08.
+  - **Result (2026-10-27):** Grype v0.120.1 (DB built 2026-10-27) found 14 findings, 5 of them blocking: `dompurify` 3.4.16 (GHSA-cg2g-xh64-v4q7 critical, GHSA-mrv2-3pqr-j5jr high; via `mermaid`), `vite` 8.3.2 (GHSA-587h-7wmj-h5pm; via Vitest and the Vite plugins), `zod` 4.6.5 (GHSA-mrhx-c7xc-m3w5; via `eslint-plugin-react-hooks`) and `undici` 8.11.2 (GHSA-xjj6-f33q-929c; via `jsdom`). All are transitive.
 
 - [ ] **T08 — Clear the blocking lockfile findings**
   - **RF:** RF-32
@@ -98,7 +99,7 @@
     - `pnpm test` and `pnpm build` pass.
     - `git diff main -- package.json` shows no major version change and no new package.
 
-- [ ] **T09 — Dependabot version bump workflow**
+- [x] **T09 — Dependabot version bump workflow**
   - **RF:** RF-18, RF-20, RF-21, RF-23, RF-24, RF-25, RF-26, RF-47, RF-48
   - **Depends on:** T05
   - **Scope:** Add `.github/workflows/dependabot-bump.yaml` (`Panel Version Bump`), copied from `web`:
