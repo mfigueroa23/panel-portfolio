@@ -1,0 +1,11 @@
+# CodeQL advanced setup (Spec 010, RF-01 and RF-08): security-extended queries over the sources,
+# without build output, test coverage or installed dependencies.
+name: 'Panel CodeQL'
+
+queries:
+  - uses: security-extended
+
+paths-ignore:
+  - .next
+  - node_modules
+  - coverage

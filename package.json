@@ -1,6 +1,6 @@
 {
   "name": "panel",
-  "version": "5.1.1",
+  "version": "5.2.0",
   "author": "Marco Antonio Figueroa Sanchez <marco@figueroa-sanchez.com>",
   "license": "MIT",
   "private": true,
@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "approve-builds": "pnpm approve-builds"
   },
   "dependencies": {
     "mermaid": "^12.1.0",

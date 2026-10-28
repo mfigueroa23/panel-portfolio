@@ -1,2 +1,5 @@
+# Dependencies allowed to run their build scripts on install (Spec 010, RF-49 to RF-51). An install
+# fails on any build script not listed here, also in CI and in Dependabot PRs, on purpose: approve
+# or deny the new package with `pnpm run approve-builds` and commit this file.
 allowBuilds:
   unrs-resolver: true

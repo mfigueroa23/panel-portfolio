@@ -1,0 +1,56 @@
+name: 'Panel SCA'
+
+# Software composition analysis of the lockfile (Spec 010, RF-27 to RF-31). Grype scans
+# pnpm-lock.yaml without installing anything (plan D4, D6); scripts/sca-gate.mjs decides what
+# blocks and writes the job summary (plan D7). The image is scanned in release.yaml.
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: panel-sca-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile:
+    name: 'Lockfile Scan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: 'Checkout Code'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 'Download Grype'
+        id: grype
+        uses: anchore/scan-action/download-grype@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          grype-version: v0.120.1
+          cache-db: true
+
+      - name: 'Scan Lockfile'
+        env:
+          GRYPE: ${{ steps.grype.outputs.cmd }}
+        run: '"$GRYPE" file:pnpm-lock.yaml -o json=grype.json -o sarif=grype.sarif'
+
+      - name: 'Check Findings'
+        run: 'node scripts/sca-gate.mjs --title Lockfile --report grype.json'
+
+      # Fork PRs get a read-only token, so only same-repository runs upload to code scanning.
+      - name: 'Upload to Code Scanning'
+        if: ${{ always() && hashFiles('grype.sarif') != '' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: grype.sarif
+          category: sca-lockfile

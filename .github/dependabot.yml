@@ -1,0 +1,66 @@
+# Dependency updates (Spec 010, RF-10 to RF-17). Weekly version updates per ecosystem, minor and
+# patch grouped, majors one per PR; security updates (npm and Actions) open at once with the same
+# prefix and labels. Nothing merges on its own: every merge into main deploys. The version bump
+# of each PR is added by .github/workflows/dependabot-bump.yaml.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Santiago
+    groups:
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    # Written out instead of `include: scope`, which would give devDependencies `build(deps-dev)`.
+    commit-message:
+      prefix: 'build(deps)'
+      prefix-development: 'build(deps)'
+    labels:
+      - dependencies
+      - npm
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Santiago
+    groups:
+      github-actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: 'ci(deps)'
+    labels:
+      - dependencies
+      - github-actions
+
+  # The Dockerfile pins tag@digest, so the moving node:26-alpine tag is updated by digest (plan D10).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Santiago
+    groups:
+      docker-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: 'build(deps)'
+    labels:
+      - dependencies
+      - docker

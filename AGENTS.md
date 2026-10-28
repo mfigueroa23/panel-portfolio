@@ -15,7 +15,7 @@ Admin panel for Marco Figueroa's portfolio: the owner signs in with Google and e
 Next.js 16 (App Router, `proxy.ts`, Server Actions), React 19, TypeScript strict, Tailwind CSS v4. Vercel deploys `main`; a Docker image on Kubernetes is the fallback (`release.yaml`).
 
 ## Commands
-- Install: `pnpm install` (then `cp .env.example .env.local`)
+- Install: `pnpm install` (then `cp .env.example .env.local`; it fails on a dependency build script not approved in `pnpm-workspace.yaml`: approve or deny it with `pnpm run approve-builds`)
 - Run: `pnpm dev` · build `pnpm build` · serve `pnpm start`
 - Tests: `pnpm test` (Vitest + Testing Library, jsdom; `pnpm test <path>` runs one file)
 - Lint: `pnpm lint` (types are checked by `pnpm build`)
