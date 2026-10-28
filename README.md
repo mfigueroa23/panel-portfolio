@@ -121,6 +121,11 @@ If Vercel is down, switch the `panel` DNS record in Cloudflare from Vercel to th
 - A `Service` for port 3000 and the ingress (Traefik) host `panel.figueroa-sanchez.com`.
 - The Cloudflare tunnel route for that host (used only while DNS points to the tunnel).
 
+The image has no shell and no BusyBox (Spec 011): it starts `node server.js` directly, and its Docker health check runs `node` to fetch `/login`. Liveness and readiness probes must therefore be `httpGet` (or `tcpSocket`), never `exec` with a shell, and `command`/`args` must not call one. To debug a running pod, attach an ephemeral container that shares its processes:
+```bash
+kubectl debug -it <pod> --image=busybox --target=panel -n portfolio
+```
+
 The Docker Hub repository `portfolio-panel`, the GitHub variables `DOCKERHUB_USERNAME`, `GOOGLE_CLIENT_ID` and `BUMP_APP_ID`, and the Actions secrets `DOCKERHUB_TOKEN`, `API_URL`, `LOCAL_NETWORK`, `KUBE_CONFIG` and `BUMP_APP_PRIVATE_KEY` must exist too. `BUMP_APP_*` belong to the `portfolio-version-bump` GitHub App shared with the web, installed on this repository; they are Actions secrets, never Dependabot secrets.
 
 To build and run the image locally:
