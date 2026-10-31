@@ -145,7 +145,7 @@ jobs:
       # imagetools copies the manifest list as is, so Docker Hub gets the scanned digest.
       - name: 'Publish Image'
         env:
-          REPOSITORY: ${{ vars.DOCKERHUB_USERNAME }}
+          REPOSITORY: ${{ secrets.DOCKERHUB_ORGANIZATION }}
           VERSION: ${{ steps.version.outputs.value }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
@@ -164,7 +164,7 @@ jobs:
       - name: 'Generate SBOMs'
         env:
           SYFT: ${{ steps.syft.outputs.cmd }}
-          REPOSITORY: ${{ vars.DOCKERHUB_USERNAME }}
+          REPOSITORY: ${{ secrets.DOCKERHUB_ORGANIZATION }}
           VERSION: ${{ steps.version.outputs.value }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
@@ -196,7 +196,7 @@ jobs:
         uses: steebchen/kubectl@7c4c70d551952e40881998b840e16d4d9824a54f # v2.1.1
         with:
           config: ${{ secrets.KUBE_CONFIG }}
-          command: set image deployment/panel panel=${{ vars.DOCKERHUB_USERNAME }}/portfolio-panel@${{ needs.package.outputs.digest }} -n portfolio
+          command: set image deployment/panel panel=${{ secrets.DOCKERHUB_ORGANIZATION }}/portfolio-panel@${{ needs.package.outputs.digest }} -n portfolio
 
       - name: 'Verify Deployment'
         uses: steebchen/kubectl@7c4c70d551952e40881998b840e16d4d9824a54f # v2.1.1
