@@ -3,3 +3,7 @@
 # or deny the new package with `pnpm run approve-builds` and commit this file.
 allowBuilds:
   unrs-resolver: true
+
+# GHSA-g3hv-75wg-m249: fixed only in minimatch 11. Remove when @typescript-eslint/typescript-estree allows ^11.
+overrides:
+  '@typescript-eslint/typescript-estree>minimatch': ^11.0.3
