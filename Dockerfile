@@ -3,7 +3,7 @@
 # binaries such as sharp. API_URL and GOOGLE_CLIENT_ID are inlined at build
 # time; an empty API_URL (unset CI secret) falls back to production. Base images
 # are pinned by digest so Dependabot can update them (Spec 010, RF-38).
-FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS build
+FROM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS build
 RUN npm install -g pnpm@12.6.0
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -15,7 +15,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 API_URL=$API_URL GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_I
 RUN pnpm build
 
 # Stage 2: unprivileged runtime with only the traced files.
-FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797
+FROM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94
 # Alpine fixes published after the base image, and no npm/npx: the server only runs `node`,
 # and the bundled npm only adds packages to scan and patch (Spec 010, RF-39, RF-40, plan D11).
 # No BusyBox and no shell either (Spec 011, D1, D2, D8): alpine-baselayout is removed with it,
